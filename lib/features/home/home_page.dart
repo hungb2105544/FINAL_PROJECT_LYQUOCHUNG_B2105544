@@ -1,5 +1,5 @@
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:ecommerce_app/custom_widget.dart';
+import 'package:ecommerce_app/common_widgets/custom_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -19,7 +19,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Image.asset(
-          'assets/images/Logo_VIEMODE.png',
+          'assets/images/splash_logo.png',
           height: 46,
         ),
         actions: [

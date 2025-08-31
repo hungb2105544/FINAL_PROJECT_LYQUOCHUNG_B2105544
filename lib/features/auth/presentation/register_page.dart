@@ -1,4 +1,4 @@
-import 'package:ecommerce_app/pocilymodal.dart';
+import 'package:ecommerce_app/common_widgets/pocilymodal.dart';
 import 'package:flutter/material.dart';
 
 class RegisterPage extends StatefulWidget {
