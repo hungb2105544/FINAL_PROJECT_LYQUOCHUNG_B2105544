@@ -1,5 +1,6 @@
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:ecommerce_app/common_widgets/custom_widget.dart';
+import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
+import 'package:ecommerce_app/common_widgets/product_card.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -109,7 +110,7 @@ class HomePage extends StatelessWidget {
                   itemBuilder: (context, index) {
                     return GestureDetector(
                       onTap: () => print("Click Product $index"),
-                      child: const ProductCard(),
+                      child: ProductCard(),
                     );
                   },
                 ),

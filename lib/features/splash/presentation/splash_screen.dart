@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
+import 'package:ecommerce_app/features/auth/service/session_manager.dart';
+import 'package:ecommerce_app/features/home/home_page.dart';
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -17,6 +21,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -40,6 +45,51 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
+
+    // Thêm delay 3 giây trước khi chuyển trang
+    Timer(const Duration(seconds: 3), () async {
+      final session = await SessionManager.restoreSession();
+      if (!mounted) return;
+      if (session != null) {
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomePage(),
+            ));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 600),
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const LoginPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              final offsetAnimation = Tween<Offset>(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ));
+
+              final fadeAnimation = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeIn,
+              );
+
+              return FadeTransition(
+                opacity: fadeAnimation,
+                child: SlideTransition(
+                  position: offsetAnimation,
+                  child: child,
+                ),
+              );
+            },
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -52,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // Gradient background
+        // Background gradient
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -76,26 +126,14 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo với bo góc + shadow
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          )
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.asset(
-                          'assets/images/splash_logo.png',
-                          width: 300,
-                          height: 50,
-                          fit: BoxFit.fitWidth,
-                        ),
+                    // Logo
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/images/splash_logo.png',
+                        width: 300,
+                        height: 50,
+                        fit: BoxFit.fitWidth,
                       ),
                     ),
                     const SizedBox(height: 20),
