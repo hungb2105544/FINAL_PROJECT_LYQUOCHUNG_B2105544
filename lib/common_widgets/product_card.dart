@@ -1,13 +1,16 @@
 import 'package:ecommerce_app/common_widgets/custom_widget.dart';
+import 'package:ecommerce_app/features/product/data/models/product_model.dart';
 import 'package:flutter/material.dart';
 
 class ProductCard extends StatelessWidget {
-  const ProductCard({super.key});
+  const ProductCard({super.key, required this.product});
+  final ProductModel product;
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final double baseFont = screenWidth * 0.04;
+    print("${product.toString()}");
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -30,8 +33,8 @@ class ProductCard extends StatelessWidget {
                 // Hình sản phẩm tỉ lệ vuông
                 AspectRatio(
                   aspectRatio: 1,
-                  child: Image.asset(
-                    "assets/images/26.png",
+                  child: Image.network(
+                    (product.imageUrls as List).first.toString(),
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Colors.grey[200],
@@ -44,7 +47,7 @@ class ProductCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Text(
-                    "Áo thun FIDE Jelly unisex form rộng nam nữ local brand cổ tròn oversize- AT210",
+                    product.name,
                     style: TextStyle(
                         fontSize: baseFont,
                         fontWeight: FontWeight.w500,
@@ -69,7 +72,8 @@ class ProductCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: RatingStars(
-                      rating: 5, size: baseFont), // 👈 tuỳ chỉnh size
+                      rating: product.averageRating,
+                      size: baseFont), // 👈 tuỳ chỉnh size
                 ),
               ],
             ),

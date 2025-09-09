@@ -1,4 +1,4 @@
-import 'package:ecommerce_app/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {

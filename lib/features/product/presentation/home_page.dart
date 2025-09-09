@@ -1,7 +1,10 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
 import 'package:ecommerce_app/common_widgets/product_card.dart';
+import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/product_state.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomePage extends StatelessWidget {
@@ -97,20 +100,39 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 // Grid sản phẩm
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 10,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // số cột
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 0.55, // tỉ lệ khung sản phẩm
-                  ),
-                  itemBuilder: (context, index) {
-                    return GestureDetector(
-                      onTap: () => print("Click Product $index"),
-                      child: ProductCard(),
+                BlocBuilder<ProductBloc, ProductState>(
+                  builder: (context, state) {
+                    if (state.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (state.errorMessage != null) {
+                      return Center(child: Text(state.errorMessage!));
+                    }
+
+                    if (state.products.isEmpty) {
+                      return const Center(child: Text("Không có sản phẩm nào"));
+                    }
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: state.products.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 20,
+                        childAspectRatio: 0.55,
+                      ),
+                      itemBuilder: (context, index) {
+                        final product = state.products[index];
+                        return GestureDetector(
+                          onTap: () => print("Click Product ${product.name}"),
+                          child: ProductCard(
+                              product: product), // truyền dữ liệu thật
+                        );
+                      },
                     );
                   },
                 ),

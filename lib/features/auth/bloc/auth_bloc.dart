@@ -1,4 +1,4 @@
-import 'package:ecommerce_app/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_event.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_state.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
@@ -18,62 +18,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     on<CheckEmailVerificationEvent>(_onCheckEmailVerification);
   }
 
-  // // ĐĂNG KÝ
-  // Future<void> _onRegister(
-  //     RegisterEvent event, Emitter<AuthenState> emit) async {
-  //   try {
-  //     emit(const AuthenState.loading());
-
-  //     // Pre-validation
-  //     if (!_validateRegistrationData(event.email, event.password)) {
-  //       emit(const AuthenState.error('Email hoặc mật khẩu không hợp lệ.'));
-  //       return;
-  //     }
-
-  //     final client = SupabaseConfig.client;
-  //     print("Tiến hành đăng nhập");
-  //     final response = await client.auth.signUp(
-  //       email: event.email,
-  //       password: event.password,
-  //       emailRedirectTo: 'ecommerceapp://auth/callback',
-  //       data: {
-  //         'registration_source': 'mobile_app',
-  //         'registration_timestamp': DateTime.now().toIso8601String(),
-  //         'app_name': 'Ecommerce App',
-  //       },
-  //     );
-
-  //     print(response);
-  //     final user = response.user;
-
-  //     if (user == null) {
-  //       emit(const AuthenState.error(
-  //           'Không thể tạo tài khoản. Vui lòng thử lại.'));
-  //       return;
-  //     }
-
-  //     // Supabase behavior: User được tạo nhưng cần verify email
-  //     if (user.emailConfirmedAt == null) {
-  //       emit(const AuthenState.emailVerificationRequired());
-  //     } else {
-  //       // Trường hợp hiếm: email được verify ngay lập tức
-  //       final session = response.session;
-  //       if (session != null) {
-  //         await SessionManager.saveSession(session);
-  //         emit(AuthenState.authenticated(user.id));
-  //       } else {
-  //         emit(const AuthenState.emailVerificationRequired());
-  //       }
-  //     }
-  //   } on AuthException catch (e) {
-  //     String errorMessage = _getLocalizedAuthError(e);
-  //     emit(AuthenState.error(errorMessage));
-  //   } catch (e) {
-  //     print('Registration error: $e');
-  //     emit(const AuthenState.error(
-  //         'Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.'));
-  //   }
-  // }
   Future<void> _onRegister(
       RegisterEvent event, Emitter<AuthenState> emit) async {
     try {
@@ -212,38 +156,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     }
   }
 
-  // KHÔI PHỤC SESSION
-  // Future<void> _onRestore(
-  //     RestoreSessionEvent event, Emitter<AuthenState> emit) async {
-  //   try {
-  //     emit(const AuthenState.loading());
-
-  //     final session = await SessionManager.restoreSession();
-
-  //     if (session != null) {
-  //       print("Không có session - Auth Bloc");
-  //       final user = SupabaseConfig.client.auth.currentUser;
-
-  //       if (user != null && session.isExpired == false) {
-  //         if (user.emailConfirmedAt != null) {
-  //           emit(AuthenState.authenticated(user.id));
-  //         } else {
-  //           emit(const AuthenState.emailVerificationRequired());
-  //         }
-  //       } else {
-  //         // Session expired hoặc invalid
-  //         await SessionManager.clearSession();
-  //         emit(const AuthenState.unauthenticated());
-  //       }
-  //     } else {
-  //       emit(const AuthenState.unauthenticated());
-  //     }
-  //   } catch (e) {
-  //     print('Session restore error: $e');
-  //     await SessionManager.clearSession();
-  //     emit(const AuthenState.unauthenticated());
-  //   }
-  // }
 // KHÔI PHỤC SESSION - FIXED VERSION
   Future<void> _onRestore(
       RestoreSessionEvent event, Emitter<AuthenState> emit) async {

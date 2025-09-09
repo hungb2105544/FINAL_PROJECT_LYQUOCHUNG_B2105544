@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
-import 'package:ecommerce_app/features/home/home_page.dart';
+import 'package:ecommerce_app/features/product/presentation/home_page.dart';
+
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
