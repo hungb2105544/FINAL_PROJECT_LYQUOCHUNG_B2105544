@@ -1,5 +1,12 @@
 import 'dart:convert';
 
+import 'package:ecommerce_app/features/product/data/models/brand_model.dart';
+import 'package:ecommerce_app/features/product/data/models/inventory_model.dart';
+import 'package:ecommerce_app/features/product/data/models/product_discount.dart';
+import 'package:ecommerce_app/features/product/data/models/product_price_history.dart';
+import 'package:ecommerce_app/features/product/data/models/product_rating_model.dart';
+import 'package:ecommerce_app/features/product/data/models/product_type_model.dart';
+import 'package:ecommerce_app/features/product/data/models/product_variant_model.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/product.dart';
@@ -29,9 +36,23 @@ class ProductModel extends Product {
     super.viewCount = 0,
     super.isFeatured = false,
     super.isActive = true,
+    this.brand,
+    this.type,
+    this.discounts,
+    this.inventory,
+    this.ratings,
+    this.variants,
+    this.priceHistoryModel,
     required super.createdAt,
     required super.updatedAt,
   });
+  final BrandModel? brand;
+  final ProductTypeModel? type;
+  final List<ProductVariantModel>? variants;
+  final List<ProductDiscountModel>? discounts;
+  final List<ProductRatingModel>? ratings;
+  final List<InventoryModel>? inventory;
+  final List<ProductPriceHistoryModel>? priceHistoryModel;
 
   /// Convert từ JSON (API Response/Database row) sang ProductModel
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -63,6 +84,26 @@ class ProductModel extends Product {
         viewCount: _parseIntSafely(json['view_count']) ?? 0,
         isFeatured: _parseBoolSafely(json['is_featured']) ?? false,
         isActive: _parseBoolSafely(json['is_active']) ?? true,
+        brand:
+            json['brands'] != null ? BrandModel.fromJson(json['brands']) : null,
+        type: json['product_types'] != null
+            ? ProductTypeModel.fromJson(json['product_types'])
+            : null,
+        variants: (json['product_variants'] as List?)
+            ?.map((v) => ProductVariantModel.fromJson(v))
+            .toList(),
+        discounts: (json['product_discounts'] as List?)
+            ?.map((d) => ProductDiscountModel.fromJson(d))
+            .toList(),
+        ratings: (json['product_ratings'] as List?)
+            ?.map((r) => ProductRatingModel.fromJson(r))
+            .toList(),
+        inventory: (json['inventory'] as List?)
+            ?.map((i) => InventoryModel.fromJson(i))
+            .toList(),
+        priceHistoryModel: (json['product_price_history'] as List?)
+            ?.map((i) => ProductPriceHistoryModel.fromJson(i))
+            .toList(),
         createdAt: _parseDateTimeSafely(json['created_at']) ?? DateTime.now(),
         updatedAt: _parseDateTimeSafely(json['updated_at']) ?? DateTime.now(),
       );
@@ -99,6 +140,16 @@ class ProductModel extends Product {
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      if (brand != null) 'brands': brand!.toJson(),
+      if (type != null) 'product_types': type!.toJson(),
+      if (variants != null)
+        'product_variants': variants!.map((v) => v.toJson()).toList(),
+      if (discounts != null)
+        'product_discounts': discounts!.map((d) => d.toJson()).toList(),
+      if (ratings != null)
+        'product_ratings': ratings!.map((r) => r.toJson()).toList(),
+      if (inventory != null)
+        'inventory': inventory!.map((i) => i.toJson()).toList(),
     };
   }
 

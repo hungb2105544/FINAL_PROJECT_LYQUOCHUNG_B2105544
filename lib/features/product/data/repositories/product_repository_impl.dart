@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/product/data/datasources/product_remote_datasource.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
@@ -20,13 +22,33 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
 
       final response = await client
           .from(_tableName)
-          .select('*')
+          .select('''
+                  *,
+                  brands (id, brand_name, image_url, description),
+                  product_types (id, type_name, description),
+                  product_variants (
+                    id, color, sku, additional_price, is_active,
+                    product_sizes (id, size_name),
+                    product_variant_images (id, image_url, sort_order)
+                  ),
+                  product_discounts (
+                    id, discount_percentage, discount_amount, start_date, end_date, is_active
+                  ),
+                  product_ratings (
+                    id, rating, title, comment, images, pros, cons, user_id, created_at
+                  ),
+                  inventory (
+                    id, branch_id, quantity, reserved_quantity,
+                    branches (id, name, phone)
+                  ),
+                  product_price_history(id, product_id, price, effective_date,end_date,is_active, created_by, created_at)
+                ''')
           .eq('is_active', true)
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
       print('📦 Supabase Response: ${response.length} products fetched');
-
+      print(const JsonEncoder.withIndent('  ').convert(response));
       final List<ProductModel> products = response
           .map((json) => ProductModel.fromJson(json as Map<String, dynamic>))
           .toList();
