@@ -1,10 +1,22 @@
+import 'package:ecommerce_app/features/product/domain/entities/sizes.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+part 'product_variant_model.g.dart';
+
+@HiveType(typeId: 12)
 class ProductVariantModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final String color;
+  @HiveField(2)
   final String sku;
+  @HiveField(3)
   final double additionalPrice;
+  @HiveField(4)
   final bool isActive;
-  final List<ProductSizeModel>? sizes;
+  @HiveField(5)
+  final List<Sizes>? sizes;
+  @HiveField(6)
   final List<ProductVariantImageModel>? images;
 
   ProductVariantModel({
@@ -25,7 +37,7 @@ class ProductVariantModel {
         additionalPrice: (json['additional_price'] as num).toDouble(),
         isActive: json['is_active'],
         sizes: (json['product_sizes'] as List<dynamic>?)
-            ?.map((s) => ProductSizeModel.fromJson(s))
+            ?.map((s) => Sizes.fromJson(s))
             .toList(),
         images: (json['product_variant_images'] as List<dynamic>?)
             ?.map((i) => ProductVariantImageModel.fromJson(i))
@@ -45,28 +57,13 @@ class ProductVariantModel {
       };
 }
 
-class ProductSizeModel {
-  final int id;
-  final String sizeName;
-
-  ProductSizeModel({required this.id, required this.sizeName});
-
-  factory ProductSizeModel.fromJson(Map<String, dynamic> json) {
-    return ProductSizeModel(
-      id: json['id'],
-      sizeName: json['size_name'],
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'size_name': sizeName,
-      };
-}
-
+@HiveType(typeId: 10)
 class ProductVariantImageModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final String imageUrl;
+  @HiveField(2)
   final int? sortOrder;
 
   ProductVariantImageModel(

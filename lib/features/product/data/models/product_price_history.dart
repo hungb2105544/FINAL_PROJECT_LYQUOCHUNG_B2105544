@@ -1,13 +1,23 @@
-import 'dart:convert';
+import 'package:hive_flutter/hive_flutter.dart';
+part 'product_price_history.g.dart';
 
+@HiveType(typeId: 5)
 class ProductPriceHistoryModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final int? productId;
+  @HiveField(2)
   final double price;
+  @HiveField(3)
   final DateTime effectiveDate;
+  @HiveField(4)
   final DateTime? endDate;
+  @HiveField(5)
   final bool isActive;
+  @HiveField(6)
   final String? createdBy;
+  @HiveField(7)
   final DateTime createdAt;
 
   const ProductPriceHistoryModel({

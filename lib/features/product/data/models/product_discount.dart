@@ -1,9 +1,19 @@
+import 'package:hive_flutter/hive_flutter.dart';
+part 'product_discount.g.dart';
+
+@HiveType(typeId: 4)
 class ProductDiscountModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final int? discountPercentage;
+  @HiveField(2)
   final num? discountAmount;
+  @HiveField(3)
   final String startDate;
+  @HiveField(4)
   final String endDate;
+  @HiveField(5)
   final bool? isActive;
 
   ProductDiscountModel({

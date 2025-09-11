@@ -1,8 +1,17 @@
+import 'package:hive_flutter/hive_flutter.dart';
+part 'inventory_model.g.dart';
+
+@HiveType(typeId: 3)
 class InventoryModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final int branchId;
+  @HiveField(2)
   final int quantity;
+  @HiveField(3)
   final int reservedQuantity;
+  @HiveField(4)
   final BranchModel? branch;
 
   InventoryModel({
@@ -34,9 +43,13 @@ class InventoryModel {
       };
 }
 
+@HiveType(typeId: 2)
 class BranchModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final String name;
+  @HiveField(2)
   final String phone;
 
   BranchModel({required this.id, required this.name, required this.phone});

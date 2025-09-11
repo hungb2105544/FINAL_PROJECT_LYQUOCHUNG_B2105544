@@ -6,6 +6,7 @@ import 'package:ecommerce_app/features/product/bloc/product_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:lottie/lottie.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -103,7 +104,17 @@ class HomePage extends StatelessWidget {
                 BlocBuilder<ProductBloc, ProductState>(
                   builder: (context, state) {
                     if (state.isLoading) {
-                      return const Center(child: CircularProgressIndicator());
+                      Future.delayed(Duration(seconds: 3), () {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Lottie.asset("assets/lottie/loading_viemode.json",
+                                  height: 50, width: 50, fit: BoxFit.cover),
+                            ],
+                          ),
+                        );
+                      });
                     }
 
                     if (state.errorMessage != null) {

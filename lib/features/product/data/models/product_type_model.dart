@@ -1,6 +1,13 @@
+import 'package:hive_flutter/hive_flutter.dart';
+part 'product_type_model.g.dart';
+
+@HiveType(typeId: 9)
 class ProductTypeModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final String typeName;
+  @HiveField(2)
   final String? description;
 
   ProductTypeModel(

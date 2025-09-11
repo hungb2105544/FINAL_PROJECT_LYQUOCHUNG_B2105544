@@ -1,12 +1,25 @@
+import 'package:hive_flutter/hive_flutter.dart';
+part 'product_rating_model.g.dart';
+
+@HiveType(typeId: 6)
 class ProductRatingModel {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final int rating;
+  @HiveField(2)
   final String? title;
+  @HiveField(3)
   final String? comment;
+  @HiveField(4)
   final List<String>? images;
+  @HiveField(5)
   final List<String>? pros;
+  @HiveField(6)
   final List<String>? cons;
+  @HiveField(7)
   final String? userId;
+  @HiveField(8)
   final String createdAt;
 
   ProductRatingModel({

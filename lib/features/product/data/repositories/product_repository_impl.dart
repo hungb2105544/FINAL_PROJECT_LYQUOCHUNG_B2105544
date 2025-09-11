@@ -28,7 +28,7 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
                   product_types (id, type_name, description),
                   product_variants (
                     id, color, sku, additional_price, is_active,
-                    product_sizes (id, size_name),
+                    sizes (id, size_name),
                     product_variant_images (id, image_url, sort_order)
                   ),
                   product_discounts (
@@ -36,6 +36,10 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
                   ),
                   product_ratings (
                     id, rating, title, comment, images, pros, cons, user_id, created_at
+                  ),
+                  product_sizes(
+                    id,
+                    sizes(id,size_name)
                   ),
                   inventory (
                     id, branch_id, quantity, reserved_quantity,
@@ -48,7 +52,7 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
           .range(offset, offset + limit - 1);
 
       print('📦 Supabase Response: ${response.length} products fetched');
-      print(const JsonEncoder.withIndent('  ').convert(response));
+      // print(const JsonEncoder.withIndent('  ').convert(response));
       final List<ProductModel> products = response
           .map((json) => ProductModel.fromJson(json as Map<String, dynamic>))
           .toList();

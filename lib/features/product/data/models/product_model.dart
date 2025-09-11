@@ -1,17 +1,11 @@
 import 'dart:convert';
 
-import 'package:ecommerce_app/features/product/data/models/brand_model.dart';
-import 'package:ecommerce_app/features/product/data/models/inventory_model.dart';
-import 'package:ecommerce_app/features/product/data/models/product_discount.dart';
-import 'package:ecommerce_app/features/product/data/models/product_price_history.dart';
-import 'package:ecommerce_app/features/product/data/models/product_rating_model.dart';
-import 'package:ecommerce_app/features/product/data/models/product_type_model.dart';
-import 'package:ecommerce_app/features/product/data/models/product_variant_model.dart';
-import 'package:equatable/equatable.dart';
-
+import 'package:ecommerce_app/features/product/data/models/index.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../domain/entities/product.dart';
-// Import Product entity
+part 'product_model.g.dart';
 
+@HiveType(typeId: 13)
 class ProductModel extends Product {
   const ProductModel({
     required super.id,
@@ -43,16 +37,26 @@ class ProductModel extends Product {
     this.ratings,
     this.variants,
     this.priceHistoryModel,
+    this.productSize,
     required super.createdAt,
     required super.updatedAt,
   });
+  @HiveField(24)
   final BrandModel? brand;
+  @HiveField(25)
   final ProductTypeModel? type;
+  @HiveField(26)
   final List<ProductVariantModel>? variants;
+  @HiveField(27)
   final List<ProductDiscountModel>? discounts;
+  @HiveField(28)
   final List<ProductRatingModel>? ratings;
+  @HiveField(29)
   final List<InventoryModel>? inventory;
+  @HiveField(30)
   final List<ProductPriceHistoryModel>? priceHistoryModel;
+  @HiveField(31)
+  final List<ProductSizeModel>? productSize;
 
   /// Convert từ JSON (API Response/Database row) sang ProductModel
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -104,6 +108,9 @@ class ProductModel extends Product {
         priceHistoryModel: (json['product_price_history'] as List?)
             ?.map((i) => ProductPriceHistoryModel.fromJson(i))
             .toList(),
+        productSize: (json['product_sizes'] as List?) // THÊM ĐOẠN NÀY
+            ?.map((ps) => ProductSizeModel.fromJson(ps))
+            .toList(),
         createdAt: _parseDateTimeSafely(json['created_at']) ?? DateTime.now(),
         updatedAt: _parseDateTimeSafely(json['updated_at']) ?? DateTime.now(),
       );
@@ -113,7 +120,6 @@ class ProductModel extends Product {
     }
   }
 
-  /// Convert ProductModel sang JSON (để gửi API hoặc lưu database)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -153,10 +159,8 @@ class ProductModel extends Product {
     };
   }
 
-  /// Convert sang JSON cho API insert (loại bỏ các fields không cần)
   Map<String, dynamic> toInsertJson() {
     final json = toJson();
-    // Remove fields that shouldn't be sent for insert
     json.remove('id');
     json.remove('average_rating');
     json.remove('total_ratings');
@@ -167,7 +171,6 @@ class ProductModel extends Product {
     return json;
   }
 
-  /// Convert sang JSON cho API update (chỉ fields có thể update)
   Map<String, dynamic> toUpdateJson({
     String? name,
     String? description,
@@ -203,14 +206,11 @@ class ProductModel extends Product {
     if (tags != null) updates['tags'] = tags;
     if (isFeatured != null) updates['is_featured'] = isFeatured;
     if (isActive != null) updates['is_active'] = isActive;
-
-    // Always update timestamp
     updates['updated_at'] = DateTime.now().toIso8601String();
 
     return updates;
   }
 
-  /// Convert ProductModel sang Product entity
   Product toEntity() {
     return Product(
       id: id,
@@ -240,7 +240,6 @@ class ProductModel extends Product {
     );
   }
 
-  /// Create ProductModel từ Product entity
   factory ProductModel.fromEntity(Product product) {
     return ProductModel(
       id: product.id,
@@ -354,10 +353,6 @@ class ProductModel extends Product {
     );
   }
 
-  // =====================================
-  // SAFE PARSING HELPER METHODS
-  // =====================================
-
   static int? _parseIntSafely(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
@@ -428,11 +423,9 @@ class ProductModel extends Product {
     if (value is DateTime) return value;
     if (value is String && value.isNotEmpty) {
       try {
-        // Try different date formats
         return DateTime.parse(value);
       } catch (e) {
         try {
-          // Try parsing timestamp
           final timestamp = int.tryParse(value);
           if (timestamp != null) {
             return DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
@@ -452,7 +445,6 @@ class ProductModel extends Product {
     return null;
   }
 
-  // Special parsing methods for edge cases
   static List<String>? _parseSingleImageUrl(dynamic value) {
     final url = _parseStringSafely(value);
     return url != null ? [url] : null;
@@ -512,7 +504,6 @@ class ProductModel extends Product {
   }
 }
 
-// Custom exception for validation errors
 class ValidationException implements Exception {
   final String message;
 
@@ -522,26 +513,21 @@ class ValidationException implements Exception {
   String toString() => 'ValidationException: $message';
 }
 
-// Extension methods for ProductModel
 extension ProductModelExtensions on ProductModel {
-  /// Check if ProductModel có data hợp lệ cho API request
   bool get isValidForApi {
     return name.isNotEmpty && id >= 0 && validate().isEmpty;
   }
 
-  /// Convert sang compact JSON (loại bỏ null values)
   Map<String, dynamic> toCompactJson() {
     final json = toJson();
     json.removeWhere((key, value) => value == null);
     return json;
   }
 
-  /// Get summary cho logging
   String get logSummary {
     return 'ProductModel(id: $id, name: "$name", active: $isActive)';
   }
 
-  /// Merge với ProductModel khác (override non-null values)
   ProductModel mergeWith(ProductModel other) {
     return copyWith(
       id: other.id != 0 ? other.id : id,

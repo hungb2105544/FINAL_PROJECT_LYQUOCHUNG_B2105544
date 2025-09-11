@@ -1,31 +1,57 @@
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'product.g.dart';
 
+@HiveType(typeId: 0)
 class Product extends Equatable {
+  @HiveField(0)
   final int id;
+  @HiveField(1)
   final int? brandId;
+  @HiveField(2)
   final int? typeId;
+  @HiveField(3)
   final String name;
+  @HiveField(4)
   final String? description;
+  @HiveField(5)
   final List<String>? imageUrls;
+  @HiveField(6)
   final String? sku;
+  @HiveField(7)
   final double? weight;
+  @HiveField(8)
   final Map<String, dynamic>? dimensions;
+  @HiveField(9)
   final String? material;
+  @HiveField(10)
   final String? color;
+  @HiveField(11)
   final String? originCountry;
+  @HiveField(12)
   final int warrantyMonths;
+  @HiveField(13)
   final String? careInstructions;
+  @HiveField(14)
   final Map<String, dynamic>? features;
+  @HiveField(15)
   final List<String>? tags;
+  @HiveField(16)
   final double averageRating;
+  @HiveField(17)
   final int totalRatings;
+  @HiveField(18)
   final Map<String, dynamic> ratingDistribution;
+  @HiveField(19)
   final int viewCount;
+  @HiveField(20)
   final bool isFeatured;
+  @HiveField(21)
   final bool isActive;
+  @HiveField(22)
   final DateTime createdAt;
+  @HiveField(23)
   final DateTime updatedAt;
-
   const Product({
     required this.id,
     this.brandId,
