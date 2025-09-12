@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_event.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_state.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthenState> {
@@ -16,6 +20,84 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     on<ResetPasswordEvent>(_onResetPassword);
     on<UpdatePasswordEvent>(_onUpdatePassword);
     on<CheckEmailVerificationEvent>(_onCheckEmailVerification);
+    on<LoginWithGoogle>(_LogininwithGoogle);
+  }
+  Future<void> _LogininwithGoogle(
+      LoginWithGoogle event, Emitter<AuthenState> emit) async {
+    try {
+      emit(const AuthenState.loading());
+      print("Bắt đầu đăng nhập");
+      final googleSignIn = GoogleSignIn(
+        // clientId: dotenv.env['CLIENT_ID'],
+        serverClientId:
+            "152762888438-1hpuulu1khn4iam4lt1m1uo5mtv87pbj.apps.googleusercontent.com",
+      );
+
+      final googleUser = await await googleSignIn.signInSilently() ??
+          await googleSignIn.signIn();
+      if (googleUser == null) {
+        print("google use bị Null");
+        emit(const AuthenState.unauthenticated());
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+
+      final accessToken = googleAuth.accessToken;
+      print("Lấy được Access Token thành công ${accessToken}");
+      final idToken = googleAuth.idToken;
+      print("Lấy được Id Token thành công ${idToken}");
+
+      if (accessToken == null || idToken == null) {
+        emit(const AuthenState.error('Không thể lấy token từ Google'));
+        return;
+      }
+
+      final client = SupabaseConfig.client;
+      final response = await client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      final session = response.session;
+      final user = response.user;
+
+      if (session != null && user != null) {
+        await SessionManager.saveSession(session);
+
+        try {
+          final profile = await client
+              .from('user_profiles')
+              .select()
+              .eq('id', user.id)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 3));
+
+          if (profile == null) {
+            await client.from('user_profiles').insert({
+              'id': user.id,
+              'email': user.email,
+              'full_name': googleUser.displayName ?? user.email?.split('@')[0],
+              'avatar_url': googleUser.photoUrl,
+              'registration_source': 'google_oauth',
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        } catch (e) {
+          print('⚠️ Lỗi khi tạo/kiểm tra profile: $e');
+        }
+
+        emit(AuthenState.authenticated(user.id));
+      } else {
+        emit(const AuthenState.error('Đăng nhập Google thất bại'));
+      }
+    } on AuthException catch (e) {
+      emit(AuthenState.error(_getLocalizedAuthError(e)));
+    } catch (e) {
+      print('Google login error: $e');
+      emit(const AuthenState.error('Có lỗi xảy ra khi đăng nhập với Google'));
+    }
   }
 
   Future<void> _onRegister(
@@ -120,7 +202,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
       final user = response.user;
 
       if (session != null && user != null) {
-        // Kiểm tra email có được verify chưa
         if (user.emailConfirmedAt == null) {
           emit(const AuthenState.emailVerificationRequired());
         } else {
@@ -278,7 +359,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     }
   }
 
-  // GỬI LẠI EMAIL XÁC THỰC
   Future<void> _onResendVerification(
       ResendVerificationEvent event, Emitter<AuthenState> emit) async {
     try {
@@ -289,9 +369,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
         email: event.email,
         emailRedirectTo: 'ecommerceapp://auth/callback',
       );
-
-      // Không thay đổi state, chỉ thông báo thành công thông qua UI
-      // emit(const AuthenState.emailVerificationRequired());
     } on AuthException catch (e) {
       emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
@@ -401,6 +478,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
       return 'Không tìm thấy tài khoản với email này.';
     } else if (message.contains('token')) {
       return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    } else if (message.contains('google') || message.contains('oauth')) {
+      if (message.contains('popup') || message.contains('cancelled')) {
+        return 'Đăng nhập Google đã bị hủy';
+      } else if (message.contains('invalid_credentials') ||
+          message.contains('invalid_token')) {
+        return 'Token Google không hợp lệ. Vui lòng thử lại.';
+      } else if (message.contains('configuration')) {
+        return 'Cấu hình Google OAuth chưa đúng. Liên hệ quản trị viên.';
+      }
+      return 'Lỗi đăng nhập Google. Vui lòng thử lại.';
+    } else if (message.contains('google') || message.contains('oauth')) {
+      if (message.contains('popup') ||
+          message.contains('cancelled') ||
+          message.contains('user_cancelled')) {
+        return 'Đăng nhập Google đã bị hủy';
+      } else if (message.contains('invalid_credentials') ||
+          message.contains('invalid_token')) {
+        return 'Token Google không hợp lệ. Vui lòng thử lại.';
+      } else if (message.contains('configuration')) {
+        return 'Cấu hình Google OAuth chưa đúng. Liên hệ quản trị viên.';
+      } else if (message.contains('network') ||
+          message.contains('connection')) {
+        return 'Lỗi kết nối mạng trong quá trình đăng nhập Google';
+      } else if (message.contains('timeout')) {
+        return 'Đăng nhập Google quá thời gian chờ';
+      }
+      return 'Lỗi đăng nhập Google. Vui lòng thử lại.';
     }
 
     return e.message.isNotEmpty

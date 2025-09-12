@@ -69,3 +69,10 @@ class CheckEmailVerificationEvent extends AuthEvent {
   @override
   List<Object?> get props => [];
 }
+
+class LoginWithGoogle extends AuthEvent {
+  LoginWithGoogle();
+
+  @override
+  List<Object?> get props => [];
+}
