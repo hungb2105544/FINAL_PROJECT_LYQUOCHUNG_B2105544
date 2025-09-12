@@ -1,6 +1,8 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/custom_widget.dart';
+import 'package:ecommerce_app/common_widgets/product_variant_card.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
+import 'package:ecommerce_app/features/product/data/models/product_variant_model.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -17,7 +19,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   // size + color + quantity state
   String selectedSize = "M";
-  Color selectedColor = Colors.red;
+  SimplifiedVariantModel? selectedColor;
   int quantity = 1;
 
   final List<Color> colors = [
@@ -261,13 +263,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                   // Color selection
 
-                  widget.product.variants!.length != 0
+                  widget.product.simplifiedVariants!.isNotEmpty
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 20),
                             Text(
-                              "Chọn màu",
+                              "Các mẫu",
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -276,30 +278,70 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   ),
                             ),
                             const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 12,
-                              children: colors.map((color) {
-                                final isSelected = selectedColor == color;
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      selectedColor = color;
-                                    });
-                                  },
-                                  child: CircleAvatar(
-                                    radius: isSelected ? 22 : 20,
-                                    backgroundColor: color,
-                                    child: isSelected
-                                        ? const Icon(Icons.check,
-                                            color: Colors.white)
-                                        : null,
-                                  ),
-                                );
-                              }).toList(),
+                            SizedBox(
+                              child: SingleChildScrollView(
+                                scrollDirection:
+                                    Axis.horizontal, // scroll ngang
+                                child: Row(
+                                  children: widget.product.simplifiedVariants!
+                                      .map((variant) {
+                                    final isSelected = selectedColor == variant;
+                                    return GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          selectedColor = variant;
+                                        });
+                                      },
+                                      child: Container(
+                                        width:
+                                            MediaQuery.of(context).size.width *
+                                                0.3,
+                                        margin: const EdgeInsets.only(
+                                            right: 12), // khoảng cách ngang
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .secondary
+                                                : Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
+                                            width: 2,
+                                          ),
+                                          boxShadow: isSelected
+                                              ? [
+                                                  BoxShadow(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .secondary
+                                                        .withOpacity(0.5),
+                                                    blurRadius: 8,
+                                                    spreadRadius: 2,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ]
+                                              : [],
+                                          borderRadius: BorderRadius.circular(
+                                              12), // bo góc viền
+                                        ),
+                                        child: ProductVariantCard(
+                                          color: variant.color,
+                                          imageUrl: variant.imageUrl.toString(),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                             ),
                           ],
                         )
-                      : const SizedBox(height: 20),
+                      : const SizedBox(height: 10),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
                   // Quantity selection
                   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -522,7 +564,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                   // Rating summary
                   if (widget.product.totalRatings != null &&
-                      widget.product.totalRatings! > 0) ...[
+                      widget.product.totalRatings! >= 0) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(

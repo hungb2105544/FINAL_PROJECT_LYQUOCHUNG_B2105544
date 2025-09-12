@@ -48,6 +48,7 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       priceHistoryModel:
           (fields[30] as List?)?.cast<ProductPriceHistoryModel>(),
       productSize: (fields[31] as List?)?.cast<ProductSizeModel>(),
+      simplifiedVariants: (fields[32] as List?)?.cast<SimplifiedVariantModel>(),
       createdAt: fields[22] as DateTime,
       updatedAt: fields[23] as DateTime,
     );
@@ -56,7 +57,7 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
   @override
   void write(BinaryWriter writer, ProductModel obj) {
     writer
-      ..writeByte(32)
+      ..writeByte(33)
       ..writeByte(24)
       ..write(obj.brand)
       ..writeByte(25)
@@ -73,6 +74,8 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       ..write(obj.priceHistoryModel)
       ..writeByte(31)
       ..write(obj.productSize)
+      ..writeByte(32)
+      ..write(obj.simplifiedVariants)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)

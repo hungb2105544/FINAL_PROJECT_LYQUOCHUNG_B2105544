@@ -19,20 +19,26 @@ class ProductTypeModelAdapter extends TypeAdapter<ProductTypeModel> {
     return ProductTypeModel(
       id: fields[0] as int,
       typeName: fields[1] as String,
+      image_url: fields[4] as String?,
       description: fields[2] as String?,
+      parent_id: fields[3] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ProductTypeModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.typeName)
       ..writeByte(2)
-      ..write(obj.description);
+      ..write(obj.description)
+      ..writeByte(3)
+      ..write(obj.parent_id)
+      ..writeByte(4)
+      ..write(obj.image_url);
   }
 
   @override

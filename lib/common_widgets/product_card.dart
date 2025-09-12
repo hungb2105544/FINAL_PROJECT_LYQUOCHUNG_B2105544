@@ -14,12 +14,23 @@ class ProductCard extends StatelessWidget {
     final double baseFont = screenWidth * 0.04;
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
-    final originalPrice =
-        (product.priceHistoryModel!.first.price ?? 0).toDouble();
-    final discount =
-        (product.discounts!.first.discountPercentage ?? 0).toDouble();
-    final discountedPrice =
-        originalPrice * (1 - (discount / 100)); // nếu discount = 0.3
+
+    // FIX: Add checks for empty arrays
+    final hasPriceHistory = product.priceHistoryModel != null &&
+        product.priceHistoryModel!.isNotEmpty;
+    final hasDiscounts =
+        product.discounts != null && product.discounts!.isNotEmpty;
+
+    final originalPrice = hasPriceHistory
+        ? (product.priceHistoryModel!.first.price ?? 0).toDouble()
+        : 0.0;
+
+    final discount = hasDiscounts
+        ? (product.discounts!.first.discountPercentage ?? 0).toDouble()
+        : 0.0;
+
+    final discountedPrice = originalPrice * (1 - (discount / 100));
+    final hasDiscount = hasDiscounts && discount > 0;
 
     return GestureDetector(
       onTap: () {
@@ -52,7 +63,9 @@ class ProductCard extends StatelessWidget {
                   AspectRatio(
                     aspectRatio: 1,
                     child: Image.network(
-                      (product.imageUrls as List).first.toString(),
+                      (product.imageUrls as List).isNotEmpty
+                          ? product.imageUrls!.first.toString()
+                          : '', // or a placeholder image
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: Colors.grey[200],
@@ -75,7 +88,7 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
 
-                  product.discounts!.first.discountPercentage != 0
+                  hasDiscount
                       ? Column(
                           children: [
                             Padding(
@@ -106,7 +119,20 @@ class ProductCard extends StatelessWidget {
                             ),
                           ],
                         )
-                      : Column(),
+                      : hasPriceHistory
+                          ? Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Text(
+                                currencyFormatter.format(originalPrice),
+                                style: TextStyle(
+                                  fontSize: baseFont * 1.05,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            )
+                          : const SizedBox(),
 
                   // Rating
                   Padding(
@@ -118,9 +144,7 @@ class ProductCard extends StatelessWidget {
               ),
               // Giảm giá
               Visibility(
-                visible: product.discounts!.first.discountPercentage != 0
-                    ? true
-                    : false,
+                visible: hasDiscount,
                 child: Positioned(
                   right: 0,
                   child: Container(
@@ -134,7 +158,7 @@ class ProductCard extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        "${product.discounts!.first.discountPercentage}%",
+                        "${discount}%",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: baseFont * 0.8,

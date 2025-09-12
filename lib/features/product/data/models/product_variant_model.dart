@@ -83,3 +83,35 @@ class ProductVariantImageModel {
         'sort_order': sortOrder,
       };
 }
+
+@HiveType(typeId: 14)
+class SimplifiedVariantModel extends HiveObject {
+  @HiveField(0)
+  final String color;
+
+  @HiveField(1)
+  final String? imageUrl;
+
+  SimplifiedVariantModel({
+    required this.color,
+    this.imageUrl,
+  });
+
+  factory SimplifiedVariantModel.fromJson(Map<String, dynamic> json) {
+    return SimplifiedVariantModel(
+      color: json['color'] ?? '',
+      imageUrl: json['image_url'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'color': color,
+      'image_url': imageUrl,
+    };
+  }
+
+  @override
+  String toString() =>
+      'SimplifiedVariantModel(color: $color, imageUrl: $imageUrl)';
+}

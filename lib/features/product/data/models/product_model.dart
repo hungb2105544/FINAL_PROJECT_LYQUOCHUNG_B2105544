@@ -7,7 +7,7 @@ part 'product_model.g.dart';
 
 @HiveType(typeId: 13)
 class ProductModel extends Product {
-  const ProductModel({
+  ProductModel({
     required super.id,
     super.brandId,
     super.typeId,
@@ -38,6 +38,7 @@ class ProductModel extends Product {
     this.variants,
     this.priceHistoryModel,
     this.productSize,
+    this.simplifiedVariants,
     required super.createdAt,
     required super.updatedAt,
   });
@@ -57,10 +58,34 @@ class ProductModel extends Product {
   final List<ProductPriceHistoryModel>? priceHistoryModel;
   @HiveField(31)
   final List<ProductSizeModel>? productSize;
+  @HiveField(32)
+  final List<SimplifiedVariantModel>? simplifiedVariants;
 
   /// Convert từ JSON (API Response/Database row) sang ProductModel
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     try {
+      List<SimplifiedVariantModel>? simplifiedVariants;
+      List<ProductVariantModel>? fullVariants;
+
+      final variantsJson = json['product_variants'] as List?;
+      if (variantsJson != null && variantsJson.isNotEmpty) {
+        final firstVariant = variantsJson.first;
+
+        if (firstVariant is Map<String, dynamic>) {
+          if (firstVariant.keys.length <= 2 &&
+              firstVariant.containsKey('color') &&
+              (firstVariant.containsKey('image_url') ||
+                  firstVariant.length == 1)) {
+            simplifiedVariants = variantsJson
+                .map((v) => SimplifiedVariantModel.fromJson(v))
+                .toList();
+          } else {
+            fullVariants = variantsJson
+                .map((v) => ProductVariantModel.fromJson(v))
+                .toList();
+          }
+        }
+      }
       return ProductModel(
         id: _parseIntSafely(json['id']) ?? 0,
         brandId: _parseIntSafely(json['brand_id']),
@@ -93,9 +118,7 @@ class ProductModel extends Product {
         type: json['product_types'] != null
             ? ProductTypeModel.fromJson(json['product_types'])
             : null,
-        variants: (json['product_variants'] as List?)
-            ?.map((v) => ProductVariantModel.fromJson(v))
-            .toList(),
+        variants: fullVariants ?? [],
         discounts: (json['product_discounts'] as List?)
             ?.map((d) => ProductDiscountModel.fromJson(d))
             .toList(),
@@ -111,6 +134,7 @@ class ProductModel extends Product {
         productSize: (json['product_sizes'] as List?) // THÊM ĐOẠN NÀY
             ?.map((ps) => ProductSizeModel.fromJson(ps))
             .toList(),
+        simplifiedVariants: simplifiedVariants ?? [],
         createdAt: _parseDateTimeSafely(json['created_at']) ?? DateTime.now(),
         updatedAt: _parseDateTimeSafely(json['updated_at']) ?? DateTime.now(),
       );
@@ -121,7 +145,7 @@ class ProductModel extends Product {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'id': id,
       'brand_id': brandId,
       'type_id': typeId,
@@ -157,6 +181,55 @@ class ProductModel extends Product {
       if (inventory != null)
         'inventory': inventory!.map((i) => i.toJson()).toList(),
     };
+    if (simplifiedVariants != null) {
+      json['product_variants'] =
+          simplifiedVariants!.map((v) => v.toJson()).toList();
+    } else if (variants != null) {
+      json['product_variants'] = variants!.map((v) => v.toJson()).toList();
+    }
+    return json;
+  }
+
+  List<dynamic> get productVariants {
+    if (simplifiedVariants != null && simplifiedVariants!.isNotEmpty) {
+      return simplifiedVariants!;
+    }
+    return variants ?? [];
+  }
+
+  List<String> get availableColors {
+    if (simplifiedVariants != null && simplifiedVariants!.isNotEmpty) {
+      return simplifiedVariants!.map((v) => v.color).toList();
+    }
+    if (variants != null && variants!.isNotEmpty) {
+      return variants!
+          .map((v) => v.color ?? '')
+          .where((c) => c.isNotEmpty)
+          .toSet()
+          .toList();
+    }
+    return [];
+  }
+
+  String? getImageByColor(String color) {
+    if (simplifiedVariants != null && simplifiedVariants!.isNotEmpty) {
+      final variant = simplifiedVariants!.firstWhere(
+        (v) => v.color == color,
+        orElse: () => simplifiedVariants!.first,
+      );
+      return variant.imageUrl;
+    }
+    if (variants != null && variants!.isNotEmpty) {
+      final variant = variants!.firstWhere(
+        (v) => v.color == color,
+        orElse: () => variants!.first,
+      );
+      // Lấy ảnh đầu tiên từ variant images
+      if (variant.images != null && variant.images!.isNotEmpty) {
+        return variant.images!.first.imageUrl;
+      }
+    }
+    return null;
   }
 
   Map<String, dynamic> toInsertJson() {
@@ -319,6 +392,7 @@ class ProductModel extends Product {
     double? averageRating,
     int? totalRatings,
     Map<String, dynamic>? ratingDistribution,
+    List<SimplifiedVariantModel>? simplifiedVariants,
     int? viewCount,
     bool? isFeatured,
     bool? isActive,
@@ -347,6 +421,7 @@ class ProductModel extends Product {
       ratingDistribution: ratingDistribution ?? this.ratingDistribution,
       viewCount: viewCount ?? this.viewCount,
       isFeatured: isFeatured ?? this.isFeatured,
+      simplifiedVariants: simplifiedVariants ?? this.simplifiedVariants,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

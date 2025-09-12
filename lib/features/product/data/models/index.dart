@@ -6,3 +6,4 @@ export 'package:ecommerce_app/features/product/data/models/product_rating_model.
 export 'package:ecommerce_app/features/product/data/models/product_type_model.dart';
 export 'package:ecommerce_app/features/product/data/models/product_variant_model.dart';
 export 'package:ecommerce_app/features/product/data/models/product_size_model.dart';
+export 'package:ecommerce_app/features/product/data/models/product_model.dart';
