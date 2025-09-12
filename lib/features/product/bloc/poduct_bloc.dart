@@ -230,7 +230,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
-  // FIX: Add missing handler for ClearProductsCache
   Future<void> _clearProductsCache(
     ClearProductsCache event,
     Emitter<ProductState> emit,
@@ -345,6 +344,30 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  // Future<void> _cacheProducts(
+  //   List<ProductModel> products,
+  //   int page,
+  //   int limit,
+  // ) async {
+  //   try {
+  //     final cacheKey = 'products_page_${page}_limit_$limit';
+  //     final productIds = <String>[];
+
+  //     for (final product in products) {
+  //       final productKey = 'product_${product.id}';
+  //       await _productsBox.put(productKey, product);
+  //       productIds.add(productKey);
+  //     }
+
+  //     await _metadataBox.put('${cacheKey}_data', productIds);
+  //     await _metadataBox.put(
+  //         '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
+
+  //     print('💾 Cached ${products.length} products with key: $cacheKey');
+  //   } catch (e) {
+  //     print('❌ Error caching products: $e');
+  //   }
+  // }
   Future<void> _cacheProducts(
     List<ProductModel> products,
     int page,
@@ -354,13 +377,19 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       final cacheKey = 'products_page_${page}_limit_$limit';
       final productIds = <String>[];
 
+      // Lưu từng sản phẩm vào box chính
       for (final product in products) {
         final productKey = 'product_${product.id}';
         await _productsBox.put(productKey, product);
         productIds.add(productKey);
       }
 
-      await _metadataBox.put('${cacheKey}_data', productIds);
+      // Lưu metadata với danh sách ID duy nhất
+      final existingIds = _metadataBox
+          .get('${cacheKey}_data', defaultValue: <String>[]) as List<String>;
+      final uniqueIds = {...existingIds, ...productIds}.toList();
+
+      await _metadataBox.put('${cacheKey}_data', uniqueIds);
       await _metadataBox.put(
           '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
 

@@ -4,10 +4,11 @@ import 'package:ecommerce_app/features/auth/service/session_manager.dart';
 import 'package:ecommerce_app/core/theme/theme_app.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
-import 'package:ecommerce_app/features/product/data/local/hive_setup.dart';
+import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_repository_impl.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
 import 'package:ecommerce_app/features/product/presentation/home_page.dart';
+import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
 import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
 import 'package:ecommerce_app/service/auth_deep_link_handler.dart';
 import 'package:ecommerce_app/service/deep_link_service.dart';
@@ -21,9 +22,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await dotenv.load(fileName: ".env");
-    await HiveSetup.initialize();
-    await SessionManager.initialize();
     await SupabaseConfig.initialize();
+    await HiveProfileSetup.initHive();
+    await HiveProductSetup.initialize();
+    await SessionManager.initialize();
+
     await DeepLinkService().initialize();
     final session = await SessionManager.restoreSession();
     runApp(MyApp(hasSession: session != null));

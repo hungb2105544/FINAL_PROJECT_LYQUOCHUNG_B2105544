@@ -12,7 +12,7 @@ class ProductState extends Equatable {
   final List<ProductModel> products;
   final bool isLoading;
   final bool isRefreshing;
-  final bool hasReachedMax; // For pagination
+  final bool hasReachedMax;
   final String? errorMessage;
   final DataSource dataSource;
   final DateTime? lastUpdated;

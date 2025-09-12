@@ -5,7 +5,7 @@ import 'package:ecommerce_app/features/product/domain/entities/sizes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
 
-class HiveSetup {
+class HiveProductSetup {
   static Future<void> initialize() async {
     await Hive.initFlutter();
 

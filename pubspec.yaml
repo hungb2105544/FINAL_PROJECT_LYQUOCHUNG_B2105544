@@ -27,6 +27,9 @@ dependencies:
   app_links: ^6.1.4
   provider:
   intl: ^0.19.0
+  uuid: ^4.5.0
+  image_picker: ^1.0.4
+  water_drop_nav_bar: ^2.2.2
 dev_dependencies:
   hive_generator: ^2.0.0
   build_runner: ^2.4.6
