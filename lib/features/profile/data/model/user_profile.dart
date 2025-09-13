@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 
 part 'user_profile.g.dart';
 
-@HiveType(typeId: 13)
+@HiveType(typeId: 15)
 class UserProfile {
   @HiveField(0)
   final String id;

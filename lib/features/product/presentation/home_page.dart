@@ -68,40 +68,6 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Image.asset(
-          'assets/images/splash_logo.png',
-          height: 46,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(FontAwesomeIcons.magnifyingGlass, size: 25),
-            onPressed: () => print("Click Search"),
-          ),
-          // FIX: Add cache status indicator
-          BlocBuilder<ProductBloc, ProductState>(
-            builder: (context, state) {
-              if (state.isFromCache) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Icon(
-                    Icons.offline_bolt,
-                    color: Colors.orange,
-                    size: 20,
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          const SizedBox(width: 12),
-        ],
-        leading: IconButton(
-          icon: const Icon(Icons.menu, size: 28),
-          onPressed: () => print("Click Menu"),
-        ),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {

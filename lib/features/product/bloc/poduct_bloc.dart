@@ -26,6 +26,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<LoadMoreProducts>(_loadMoreProducts);
   }
 
+  // -------------------- LOAD WITH CACHE --------------------
   Future<void> _loadProductsWithCache(
     LoadProductsWithCache event,
     Emitter<ProductState> emit,
@@ -43,7 +44,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       );
 
       if (cachedProducts != null && cachedProducts.isNotEmpty) {
-        print('📱 Showing cached products: ${cachedProducts.length} items');
         emit(state.copyWith(
           isLoading: false,
           isRefreshing: true,
@@ -55,19 +55,15 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       }
 
       try {
-        print('🌐 Fetching fresh data from server...');
         final freshProducts = await _getProductsIsActiveUseCase.call();
 
         if (freshProducts.isNotEmpty) {
-          // 3. Cache the fresh data
           await _cacheProducts(freshProducts, event.page, event.limit);
 
-          print(
-              '✅ Fresh data loaded and cached: ${freshProducts.length} items');
           emit(state.copyWith(
             isLoading: false,
             isRefreshing: false,
-            products: freshProducts,
+            products: freshProducts.toSet().toList(),
             errorMessage: null,
             dataSource: DataSource.server,
             lastUpdated: DateTime.now(),
@@ -82,8 +78,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
           ));
         }
       } catch (serverError) {
-        print('❌ Server error: $serverError');
-
         if (cachedProducts != null && cachedProducts.isNotEmpty) {
           emit(state.copyWith(
             isLoading: false,
@@ -94,7 +88,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
             dataSource: DataSource.cache,
           ));
         } else {
-          // No cache, show error
           emit(state.copyWith(
             isLoading: false,
             isRefreshing: false,
@@ -105,7 +98,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         }
       }
     } catch (error) {
-      print('❌ General error in _loadProductsWithCache: $error');
       emit(state.copyWith(
         isLoading: false,
         isRefreshing: false,
@@ -115,15 +107,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  // -------------------- GET PRODUCTS --------------------
   Future<void> _getProducts(
     GetProductIsActive event,
     Emitter<ProductState> emit,
   ) async {
     try {
-      emit(state.copyWith(
-        isLoading: true,
-        errorMessage: null,
-      ));
+      emit(state.copyWith(isLoading: true, errorMessage: null));
 
       final response = await _getProductsIsActiveUseCase.call();
 
@@ -132,7 +122,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
         emit(state.copyWith(
           isLoading: false,
-          products: response,
+          products: response.toSet().toList(),
           errorMessage: null,
           dataSource: DataSource.server,
           lastUpdated: DateTime.now(),
@@ -154,15 +144,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  // -------------------- LOAD FROM CACHE --------------------
   Future<void> _loadProductsFromCache(
     LoadProductsFromCache event,
     Emitter<ProductState> emit,
   ) async {
     try {
-      emit(state.copyWith(
-        isLoading: true,
-        errorMessage: null,
-      ));
+      emit(state.copyWith(isLoading: true, errorMessage: null));
 
       final cachedProducts = await _loadCachedProducts(
         page: event.page,
@@ -194,15 +182,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  // -------------------- REFRESH --------------------
   Future<void> _refreshProducts(
     RefreshProducts event,
     Emitter<ProductState> emit,
   ) async {
     try {
-      emit(state.copyWith(
-        isRefreshing: true,
-        errorMessage: null,
-      ));
+      emit(state.copyWith(isRefreshing: true, errorMessage: null));
 
       final response = await _getProductsIsActiveUseCase.call();
 
@@ -211,7 +197,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
         emit(state.copyWith(
           isRefreshing: false,
-          products: response,
+          products: response.toSet().toList(),
           errorMessage: null,
           dataSource: DataSource.server,
           lastUpdated: DateTime.now(),
@@ -223,13 +209,139 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         ));
       }
     } catch (error) {
-      emit(state.copyWith(
-        isRefreshing: false,
-        errorMessage: error.toString(),
-      ));
+      emit(state.copyWith(isRefreshing: false, errorMessage: error.toString()));
     }
   }
 
+  // -------------------- LOAD MORE --------------------
+  Future<void> _loadMoreProducts(
+    LoadMoreProducts event,
+    Emitter<ProductState> emit,
+  ) async {
+    if (state.hasReachedMax) return;
+
+    try {
+      emit(state.copyWith(isLoading: true));
+
+      final cachedProducts = await _loadCachedProducts(
+        page: event.page,
+        limit: event.limit,
+      );
+
+      List<ProductModel> newProducts = [];
+
+      if (cachedProducts != null && cachedProducts.isNotEmpty) {
+        newProducts = cachedProducts;
+      } else {
+        final response = await _getProductsIsActiveUseCase.call();
+        if (response.isNotEmpty) {
+          await _cacheProducts(response, event.page, event.limit);
+          newProducts = response;
+        } else {
+          emit(state.copyWith(isLoading: false, hasReachedMax: true));
+          return;
+        }
+      }
+
+      final updatedProducts = [
+        ...{...state.products, ...newProducts}
+      ].toList();
+
+      emit(state.copyWith(
+        isLoading: false,
+        products: updatedProducts,
+        currentPage: event.page,
+        dataSource:
+            cachedProducts != null ? DataSource.cache : DataSource.server,
+        hasReachedMax: newProducts.length < event.limit,
+      ));
+    } catch (error) {
+      emit(state.copyWith(isLoading: false, errorMessage: error.toString()));
+    }
+  }
+
+  // -------------------- LOAD CACHED PRODUCTS --------------------
+  Future<List<ProductModel>?> _loadCachedProducts({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final cacheKey = 'products_page_${page}_limit_$limit';
+
+      if (!_cacheService.isCacheValid(cacheKey)) return null;
+
+      final cachedData = _metadataBox.get('${cacheKey}_data');
+      if (cachedData == null) return null;
+
+      List<String> productIds = [];
+
+      if (cachedData is List<String>) {
+        productIds = cachedData;
+      } else if (cachedData is List) {
+        productIds = cachedData.map((e) => e.toString()).toList();
+      } else if (cachedData is String) {
+        productIds = cachedData.split(',').where((s) => s.isNotEmpty).toList();
+      } else {
+        await _metadataBox.delete('${cacheKey}_data');
+        await _metadataBox.delete('${cacheKey}_timestamp');
+        return null;
+      }
+
+      final products = <ProductModel>[];
+      final seenIds = <String>{};
+
+      for (final productId in productIds) {
+        if (!seenIds.contains(productId)) {
+          final product = _productsBox.get(productId.trim());
+          if (product != null) {
+            products.add(product);
+            seenIds.add(productId);
+          }
+        }
+      }
+
+      return products.isEmpty ? null : products;
+    } catch (e) {
+      print('❌ Error loading cached products: $e');
+      return null;
+    }
+  }
+
+  // -------------------- CACHE PRODUCTS --------------------
+  Future<void> _cacheProducts(
+    List<ProductModel> products,
+    int page,
+    int limit,
+  ) async {
+    try {
+      final cacheKey = 'products_page_${page}_limit_$limit';
+
+      final productIds =
+          products.map((p) => 'product_${p.id}').toSet().toList();
+
+      for (final product in products) {
+        await _productsBox.put('product_${product.id}', product);
+      }
+
+      final existingIdsDynamic =
+          _metadataBox.get('${cacheKey}_data', defaultValue: <dynamic>[]);
+
+      final existingIds =
+          List<String>.from(existingIdsDynamic.map((e) => e.toString()));
+
+      final uniqueIds = {...existingIds, ...productIds}.toList();
+
+      await _metadataBox.put('${cacheKey}_data', uniqueIds);
+      await _metadataBox.put(
+        '${cacheKey}_timestamp',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (e) {
+      print('❌ Error caching products: $e');
+    }
+  }
+
+  // -------------------- CLEAR CACHE --------------------
   Future<void> _clearProductsCache(
     ClearProductsCache event,
     Emitter<ProductState> emit,
@@ -248,161 +360,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
-  Future<void> _loadMoreProducts(
-    LoadMoreProducts event,
-    Emitter<ProductState> emit,
-  ) async {
-    if (state.hasReachedMax) return;
-
-    try {
-      emit(state.copyWith(isLoading: true));
-
-      final cachedProducts = await _loadCachedProducts(
-        page: event.page,
-        limit: event.limit,
-      );
-
-      if (cachedProducts != null && cachedProducts.isNotEmpty) {
-        final updatedProducts = List.of(state.products)..addAll(cachedProducts);
-        emit(state.copyWith(
-          isLoading: false,
-          products: updatedProducts,
-          currentPage: event.page,
-          dataSource: DataSource.cache,
-        ));
-      } else {
-        final response = await _getProductsIsActiveUseCase.call();
-
-        if (response.isNotEmpty) {
-          await _cacheProducts(response, event.page, event.limit);
-
-          final updatedProducts = List.of(state.products)..addAll(response);
-          emit(state.copyWith(
-            isLoading: false,
-            products: updatedProducts,
-            currentPage: event.page,
-            dataSource: DataSource.server,
-            hasReachedMax: response.length < event.limit,
-          ));
-        } else {
-          emit(state.copyWith(
-            isLoading: false,
-            hasReachedMax: true,
-          ));
-        }
-      }
-    } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: error.toString(),
-      ));
-    }
-  }
-
-  Future<List<ProductModel>?> _loadCachedProducts({
-    int page = 1,
-    int limit = 20,
-  }) async {
-    try {
-      final cacheKey = 'products_page_${page}_limit_$limit';
-
-      if (!_cacheService.isCacheValid(cacheKey)) {
-        print('📱 Cache expired for key: $cacheKey');
-        return null;
-      }
-
-      final cachedData = _metadataBox.get('${cacheKey}_data');
-      if (cachedData == null) return null;
-      List<String> productIds = [];
-
-      if (cachedData is List<String>) {
-        productIds = cachedData;
-      } else if (cachedData is List) {
-        productIds = cachedData.cast<String>();
-      } else if (cachedData is String) {
-        productIds = cachedData.split(',').where((s) => s.isNotEmpty).toList();
-      } else {
-        print('❌ Invalid cached data type: ${cachedData.runtimeType}');
-        await _metadataBox.delete('${cacheKey}_data');
-        await _metadataBox.delete('${cacheKey}_timestamp');
-        return null;
-      }
-
-      final products = <ProductModel>[];
-      for (final productId in productIds) {
-        final product = _productsBox.get(productId.trim());
-        if (product != null) {
-          products.add(product);
-        }
-      }
-
-      print('📱 Loaded ${products.length} products from cache');
-      return products.isEmpty ? null : products;
-    } catch (e) {
-      print('❌ Error loading cached products: $e');
-      return null;
-    }
-  }
-
-  // Future<void> _cacheProducts(
-  //   List<ProductModel> products,
-  //   int page,
-  //   int limit,
-  // ) async {
-  //   try {
-  //     final cacheKey = 'products_page_${page}_limit_$limit';
-  //     final productIds = <String>[];
-
-  //     for (final product in products) {
-  //       final productKey = 'product_${product.id}';
-  //       await _productsBox.put(productKey, product);
-  //       productIds.add(productKey);
-  //     }
-
-  //     await _metadataBox.put('${cacheKey}_data', productIds);
-  //     await _metadataBox.put(
-  //         '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
-
-  //     print('💾 Cached ${products.length} products with key: $cacheKey');
-  //   } catch (e) {
-  //     print('❌ Error caching products: $e');
-  //   }
-  // }
-  Future<void> _cacheProducts(
-    List<ProductModel> products,
-    int page,
-    int limit,
-  ) async {
-    try {
-      final cacheKey = 'products_page_${page}_limit_$limit';
-      final productIds = <String>[];
-
-      // Lưu từng sản phẩm vào box chính
-      for (final product in products) {
-        final productKey = 'product_${product.id}';
-        await _productsBox.put(productKey, product);
-        productIds.add(productKey);
-      }
-
-      // Lưu metadata với danh sách ID duy nhất
-      final existingIds = _metadataBox
-          .get('${cacheKey}_data', defaultValue: <String>[]) as List<String>;
-      final uniqueIds = {...existingIds, ...productIds}.toList();
-
-      await _metadataBox.put('${cacheKey}_data', uniqueIds);
-      await _metadataBox.put(
-          '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
-
-      print('💾 Cached ${products.length} products with key: $cacheKey');
-    } catch (e) {
-      print('❌ Error caching products: $e');
-    }
-  }
-
   Future<void> clearCache() async {
     try {
       await _cacheService.clearAllCache();
-      print('🧹 All products cache cleared');
     } catch (e) {
       print('❌ Error clearing cache: $e');
     }

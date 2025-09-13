@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:ecommerce_app/features/profile/data/model/user_profile.dart';
 
 abstract class ProfileRepository {

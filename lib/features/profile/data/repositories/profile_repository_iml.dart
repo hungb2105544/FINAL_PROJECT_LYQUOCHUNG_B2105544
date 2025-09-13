@@ -62,7 +62,7 @@ class SupabaseProfileRepository implements ProfileRepository {
       await _client.from('user_profiles').update(updateData).eq('id', user.id);
 
       final updatedResponse = await _client
-          .from("user_profiles")
+          .from('user_profiles')
           .select('*')
           .eq('id', user.id)
           .single();

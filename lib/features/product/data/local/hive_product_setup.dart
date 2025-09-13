@@ -55,7 +55,7 @@ class HiveProductSetup {
 
       print('📦 All Hive boxes opened successfully');
     } catch (e) {
-      print('❌ Error opening Hive boxes: $e');
+      print('❌ Error opening  Product Hive boxes: $e');
       rethrow;
     }
   }
