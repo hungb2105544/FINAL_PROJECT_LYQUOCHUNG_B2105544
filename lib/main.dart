@@ -14,12 +14,17 @@ import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
 import 'package:ecommerce_app/service/auth_deep_link_handler.dart';
 import 'package:ecommerce_app/service/deep_link_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Đặt SystemUiMode ở đây để đảm bảo nó được thiết lập trước
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   try {
     await dotenv.load(fileName: ".env");
     await SupabaseConfig.initialize();
@@ -29,6 +34,10 @@ Future<void> main() async {
 
     await DeepLinkService().initialize();
     final session = await SessionManager.restoreSession();
+
+    // Đặt lại chế độ immersive sau khi khởi tạo xong
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+
     runApp(MyApp(hasSession: session != null));
   } catch (e) {
     print('Error during app initialization: $e');
@@ -46,10 +55,10 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   @override
-  @override
   void initState() {
     super.initState();
-    AuthDeepLinkHandler.initialize(context);
+    // Sử dụng Future.microtask để đảm bảo context đã sẵn sàng
+    Future.microtask(() => AuthDeepLinkHandler.initialize(context));
   }
 
   @override
@@ -77,10 +86,18 @@ class _MyAppState extends State<MyApp> {
                 )..add(GetProductIsActive()))
       ],
       child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Flutter Demo',
-          theme: appTheme,
-          home: widget.hasSession ? MainScreen() : const SplashScreen()),
+        debugShowCheckedModeBanner: false,
+        title: 'Flutter Demo',
+        theme: appTheme,
+        // Sử dụng Builder để đảm bảo context đúng
+        home: Builder(
+          builder: (context) {
+            return widget.hasSession
+                ? const MainScreen()
+                : const SplashScreen();
+          },
+        ),
+      ),
     );
   }
 }

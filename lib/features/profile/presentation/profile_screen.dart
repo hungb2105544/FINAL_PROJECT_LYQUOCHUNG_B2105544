@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_event.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_state.dart';
@@ -223,7 +224,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await SupabaseConfig.client.auth.signOut();
                 Navigator.of(context).pop();
                 // Navigate to login screen
-                // Navigator.pushReplacementNamed(context, '/login');
+                Navigator.pushReplacement(context,
+                    CupertinoPageRoute(builder: (context) => LoginPage()));
               },
               child: const Text('Đăng xuất'),
             ),

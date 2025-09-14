@@ -115,12 +115,13 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
           .range(offset, offset + limit - 1);
 
       print('📦 Supabase Response: ${response.length} products fetched');
+      print(const JsonEncoder.withIndent('  ').convert(response));
       final processedResponse =
           _processProductResponse(response.cast<Map<String, dynamic>>());
       final List<ProductModel> products =
           processedResponse.map((json) => ProductModel.fromJson(json)).toList();
       print("Dữ liêu product sau khi xử lí");
-      print(const JsonEncoder.withIndent('  ').convert(products));
+
       // Cache the results
       await _cacheProducts(cacheKey, products);
 

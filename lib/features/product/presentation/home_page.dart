@@ -6,7 +6,6 @@ import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:lottie/lottie.dart';
 
 class HomePage extends StatefulWidget {
@@ -26,6 +25,9 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProductBloc>().add(
             LoadProductsWithCache(page: 1, limit: 20, showCacheFirst: true),
+          );
+      context.read<ProductBloc>().add(
+            GetProductIsActive(),
           );
     });
 
