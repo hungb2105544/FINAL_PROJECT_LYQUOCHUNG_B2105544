@@ -4,8 +4,6 @@ import 'package:ecommerce_app/features/auth/bloc/auth_event.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_state.dart';
 import 'package:ecommerce_app/features/auth/presentation/register_page.dart';
 import 'package:ecommerce_app/features/auth/presentation/waiting_verify_page.dart';
-import 'package:ecommerce_app/features/product/presentation/home_page.dart';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

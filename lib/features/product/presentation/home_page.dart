@@ -210,7 +210,6 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: _buildSectionTitle(context, "Danh sách sản phẩm"),
             ),
-            // FIX: Add cache status and refresh button
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [

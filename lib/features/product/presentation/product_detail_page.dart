@@ -17,18 +17,9 @@ class ProductDetailPage extends StatefulWidget {
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _currentIndex = 0;
 
-  // size + color + quantity state
   String selectedSize = "M";
   SimplifiedVariantModel? selectedColor;
   int quantity = 1;
-
-  final List<Color> colors = [
-    Colors.red,
-    Colors.blue,
-    Colors.green,
-    Colors.black
-  ];
-
   @override
   Widget build(BuildContext context) {
     final productSize = widget.product.productSize;

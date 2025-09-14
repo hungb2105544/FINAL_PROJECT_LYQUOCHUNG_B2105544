@@ -2,7 +2,6 @@ import 'package:ecommerce_app/common_widgets/pocilymodal.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_bloc.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_event.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_state.dart';
-import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
 import 'package:ecommerce_app/features/auth/presentation/waiting_verify_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
