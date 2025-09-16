@@ -1,4 +1,6 @@
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/address/presentation/address_screen.dart';
+import 'package:ecommerce_app/features/address/presentation/address_user_screen.dart';
 import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_event.dart';
@@ -72,7 +74,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.orange,
                           icon: Icons.location_city_rounded,
                           title: "Địa chỉ",
-                          onTap: () => print("Đi tới địa chỉ"),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (context) => AddressUserScreen(),
+                              ),
+                            );
+                          },
                         ),
                         ProfileCard(
                           color: Colors.redAccent,
