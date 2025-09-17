@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/common_widgets/main_screen.dart';
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/address/bloc/address_bloc.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_bloc.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
 import 'package:ecommerce_app/core/theme/theme_app.dart';
@@ -65,6 +66,9 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider(
+          create: (context) => AddressBloc(),
+        ),
         BlocProvider(
           create: (context) => AuthBloc(),
         ),

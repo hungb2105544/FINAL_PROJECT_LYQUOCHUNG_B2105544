@@ -53,6 +53,22 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
   }
 
   @override
+  Future<bool> canDeleteAddress(UserAddressModel address) async {
+    try {
+      // Check orders
+      final ordersUsingAddress = await client
+          .from('orders')
+          .select('id')
+          .eq('user_address_id', address.id)
+          .limit(1);
+
+      return ordersUsingAddress.isEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
   Future<void> updateAddress(UserAddressModel updatedAddress) async {
     try {
       if (updatedAddress.isDefault) {
@@ -124,6 +140,74 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch addresses: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteAddress(UserAddressModel address) async {
+    try {
+      // QUAN TRỌNG: Check xem address có đang được sử dụng trong orders không
+      final ordersUsingAddress = await client
+          .from('orders')
+          .select('id')
+          .eq('user_address_id', address.id)
+          .limit(1);
+
+      if (ordersUsingAddress.isNotEmpty) {
+        throw Exception(
+            'Không thể xóa địa chỉ này vì đã được sử dụng trong đơn hàng');
+      }
+
+      // Bước 1: Xóa user_address relationship
+      await client.from('user_addresses').delete().eq('id', address.id);
+
+      // Bước 2: Check và xóa address nếu không còn ai sử dụng
+      if (address.addressId != null) {
+        final otherUsersResponse = await client
+            .from('user_addresses')
+            .select('id')
+            .eq('address_id', address.addressId!)
+            .limit(1);
+
+        // Nếu không có user nào khác sử dụng address này
+        if (otherUsersResponse.isEmpty) {
+          // Check xem address có được sử dụng bởi branches không
+          final branchesUsingAddress = await client
+              .from('branches')
+              .select('id')
+              .eq('address_id', address.addressId!)
+              .limit(1);
+
+          if (branchesUsingAddress.isEmpty) {
+            // Safe để xóa address
+            // Location sẽ được xóa tự động nhờ foreign key constraint
+            // hoặc xóa manual nếu không có cascade
+            if (address.address?.location?.id != null) {
+              try {
+                await client
+                    .from('locations')
+                    .delete()
+                    .eq('id', address.address!.location!.id!);
+              } catch (e) {
+                // Location có thể đã bị xóa bởi cascade hoặc đang được sử dụng
+                print('Warning: Could not delete location: $e');
+              }
+            }
+
+            // Xóa address record
+            await client
+                .from('addresses')
+                .delete()
+                .eq('id', address.addressId!);
+          }
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains(
+          'Không thể xóa địa chỉ này vì đã được sử dụng trong đơn hàng')) {
+        rethrow; // Re-throw custom error
+      }
+      throw Exception('Failed to delete address: $e');
     }
   }
 }

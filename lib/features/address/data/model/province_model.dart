@@ -17,6 +17,8 @@ class Province {
     required this.districts,
   });
 
+  int get provinceCode => code;
+
   factory Province.fromJson(Map<String, dynamic> json) {
     return Province(
       code: json['code'],
@@ -29,4 +31,7 @@ class Province {
           .toList(),
     );
   }
+
+  @override
+  String toString() => name;
 }

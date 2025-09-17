@@ -1,6 +1,11 @@
+import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/address/bloc/address_bloc.dart';
+import 'package:ecommerce_app/features/address/bloc/address_event.dart';
+import 'package:ecommerce_app/features/address/bloc/address_state.dart';
 import 'package:ecommerce_app/features/address/data/model/ward_model.dart';
 import 'package:ecommerce_app/features/address/presentation/address_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class AddressUserScreen extends StatefulWidget {
@@ -11,6 +16,18 @@ class AddressUserScreen extends StatefulWidget {
 }
 
 class _AddressUserScreenState extends State<AddressUserScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final client = SupabaseConfig.client;
+      final String userId = client.auth.currentUser!.id;
+      context.read<AddressBloc>().add(
+            LoadAddress(userId: userId),
+          );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,12 +44,16 @@ class _AddressUserScreenState extends State<AddressUserScreen> {
                         )));
           },
           child: const Icon(FontAwesomeIcons.add)),
-      body: ListView.builder(
-        itemCount: 10,
-        itemBuilder: (context, index) {
-          return AddressCard();
-        },
-      ),
+      body: BlocBuilder<AddressBloc, AddressState>(builder: (context, state) {
+        return state.props.isNotEmpty
+            ? ListView.builder(
+                itemCount: 10,
+                itemBuilder: (context, index) {
+                  return AddressCard();
+                },
+              )
+            : Center(child: const Text("Đăng thiết lập"));
+      }),
     );
   }
 }

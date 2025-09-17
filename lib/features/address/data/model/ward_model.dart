@@ -22,4 +22,6 @@ class Ward {
       districtCode: json['district_code'],
     );
   }
+  @override
+  String toString() => name;
 }

@@ -28,4 +28,6 @@ class District {
           (json['wards'] as List? ?? []).map((w) => Ward.fromJson(w)).toList(),
     );
   }
+  @override
+  String toString() => name;
 }
