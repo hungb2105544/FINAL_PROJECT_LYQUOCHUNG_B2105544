@@ -19,6 +19,10 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
             .single();
         locationId = locationRes['id'] as int;
       }
+      if (newAddress.isDefault) {
+        await client.from('user_addresses').update({'is_default': false}).eq(
+            'user_id', newAddress.userId as String);
+      }
 
       final addressRes = await client
           .from('addresses')
@@ -37,11 +41,6 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
 
       final addressId = addressRes['id'] as int;
 
-      if (newAddress.isDefault) {
-        await client.from('user_addresses').update({'is_default': false}).eq(
-            'user_id', newAddress.userId as String);
-      }
-
       await client.from('user_addresses').insert({
         'user_id': newAddress.userId,
         'address_id': addressId,
@@ -55,11 +54,10 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
   @override
   Future<bool> canDeleteAddress(UserAddressModel address) async {
     try {
-      // Check orders
       final ordersUsingAddress = await client
           .from('orders')
           .select('id')
-          .eq('user_address_id', address.id)
+          .eq('user_address_id', address.id!.toInt())
           .limit(1);
 
       return ordersUsingAddress.isEmpty;
@@ -70,17 +68,18 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
 
   @override
   Future<void> updateAddress(UserAddressModel updatedAddress) async {
+    // print('Updating address ở Repository: ${updatedAddress.toJson()}');
     try {
       if (updatedAddress.isDefault) {
         await client.from('user_addresses').update({'is_default': false}).eq(
-            'user_id', updatedAddress.userId as String);
+            'user_id', updatedAddress.userId.toString());
       }
 
       if (updatedAddress.address?.location != null) {
         await client.from('locations').update({
           'latitude': updatedAddress.address!.location!.latitude,
           'longitude': updatedAddress.address!.location!.longitude,
-        }).eq('id', updatedAddress.address!.location!.id);
+        }).eq('id', updatedAddress.address!.location!.id!.toInt());
       }
 
       if (updatedAddress.address != null) {
@@ -93,13 +92,13 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
           'receiver_phone': updatedAddress.address!.receiverPhone,
           'is_active': updatedAddress.address!.isActive,
           'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', updatedAddress.address!.id);
+        }).eq('id', updatedAddress.address!.id!.toInt());
       }
 
       await client.from('user_addresses').update({
         'is_default': updatedAddress.isDefault,
         'address_id': updatedAddress.addressId,
-      }).eq('id', updatedAddress.id);
+      }).eq('id', updatedAddress.id!.toInt());
     } catch (e) {
       throw Exception('Failed to update address: $e');
     }
@@ -125,6 +124,9 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
             receiver_name,
             receiver_phone,
             is_active,
+            location_id,
+            created_at,
+            updated_at,
             location: locations (
               id,
               latitude,
@@ -150,7 +152,7 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
       final ordersUsingAddress = await client
           .from('orders')
           .select('id')
-          .eq('user_address_id', address.id)
+          .eq('user_address_id', address.id!.toInt())
           .limit(1);
 
       if (ordersUsingAddress.isNotEmpty) {
@@ -159,7 +161,10 @@ class UserAddressRepositoryImpl implements UserAddressRepository {
       }
 
       // Bước 1: Xóa user_address relationship
-      await client.from('user_addresses').delete().eq('id', address.id);
+      await client
+          .from('user_addresses')
+          .delete()
+          .eq('id', address.id!.toInt());
 
       // Bước 2: Check và xóa address nếu không còn ai sử dụng
       if (address.addressId != null) {

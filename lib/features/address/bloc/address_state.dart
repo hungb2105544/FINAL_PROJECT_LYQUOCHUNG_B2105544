@@ -8,6 +8,16 @@ abstract class AddressState extends Equatable {
   List<Object?> get props => [];
 }
 
+class AddressOperationSuccess extends AddressState {
+  final List<UserAddressModel> userAddresses;
+  final String message;
+
+  const AddressOperationSuccess(this.userAddresses, this.message);
+
+  @override
+  List<Object> get props => [userAddresses, message];
+}
+
 class AddressInitial extends AddressState {
   const AddressInitial();
 }

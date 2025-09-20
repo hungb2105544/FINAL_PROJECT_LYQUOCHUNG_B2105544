@@ -1,11 +1,11 @@
 class LocationModel {
-  final int id;
+  final int? id;
   final double? latitude;
   final double? longitude;
   final DateTime? createdAt;
 
   LocationModel({
-    required this.id,
+    this.id,
     this.latitude,
     this.longitude,
     this.createdAt,
@@ -14,7 +14,7 @@ class LocationModel {
   /// From JSON (map from API/DB)
   factory LocationModel.fromJson(Map<String, dynamic> json) {
     return LocationModel(
-      id: json['id'] as int,
+      id: json['id'] != null ? json['id'] as int : null,
       latitude: json['latitude'] != null
           ? (json['latitude'] as num).toDouble()
           : null,

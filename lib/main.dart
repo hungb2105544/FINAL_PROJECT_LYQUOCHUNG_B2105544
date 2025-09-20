@@ -1,6 +1,7 @@
 import 'package:ecommerce_app/common_widgets/main_screen.dart';
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/address/bloc/address_bloc.dart';
+import 'package:ecommerce_app/features/address/data/repositories/user_address_repository_impl.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_bloc.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
 import 'package:ecommerce_app/core/theme/theme_app.dart';
@@ -22,8 +23,6 @@ import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Đặt SystemUiMode ở đây để đảm bảo nó được thiết lập trước
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   try {
@@ -58,7 +57,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // Sử dụng Future.microtask để đảm bảo context đã sẵn sàng
     Future.microtask(() => AuthDeepLinkHandler.initialize(context));
   }
 
@@ -66,8 +64,14 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        Provider(
+          create: (context) =>
+              UserAddressRepositoryImpl(), // Hoặc tên class của bạn
+        ),
         BlocProvider(
-          create: (context) => AddressBloc(),
+          create: (context) => AddressBloc(
+            context.read<UserAddressRepositoryImpl>(),
+          ),
         ),
         BlocProvider(
           create: (context) => AuthBloc(),
@@ -93,7 +97,6 @@ class _MyAppState extends State<MyApp> {
         debugShowCheckedModeBanner: false,
         title: 'Flutter Demo',
         theme: appTheme,
-        // Sử dụng Builder để đảm bảo context đúng
         home: Builder(
           builder: (context) {
             return widget.hasSession

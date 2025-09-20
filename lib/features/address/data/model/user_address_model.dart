@@ -1,17 +1,16 @@
 import 'address_model.dart';
 
 class UserAddressModel {
-  final int id;
-  final String? userId; // uuid in Postgres → String in Flutter
-  final int? addressId; // FK → addresses.id
+  final int? id;
+  final String? userId;
+  final int? addressId;
   final bool isDefault;
   final DateTime? createdAt;
 
-  /// Optional nested object
   final AddressModel? address;
 
   UserAddressModel({
-    required this.id,
+    this.id,
     this.userId,
     this.addressId,
     this.isDefault = false,
@@ -19,10 +18,9 @@ class UserAddressModel {
     this.address,
   });
 
-  /// From JSON (map from API/DB)
   factory UserAddressModel.fromJson(Map<String, dynamic> json) {
     return UserAddressModel(
-      id: json['id'] as int,
+      id: json['id'] != null ? json['id'] as int : null,
       userId: json['user_id'] as String?,
       addressId: json['address_id'] as int?,
       isDefault: json['is_default'] ?? false,
@@ -35,7 +33,6 @@ class UserAddressModel {
     );
   }
 
-  /// To JSON (map to send to API/DB)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -47,7 +44,6 @@ class UserAddressModel {
     };
   }
 
-  /// Copy with helper
   UserAddressModel copyWith({
     int? id,
     String? userId,

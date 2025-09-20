@@ -1,7 +1,7 @@
 import 'location_model.dart'; // import your LocationModel
 
 class AddressModel {
-  final int id;
+  final int? id;
   final String street;
   final String ward;
   final String district;
@@ -12,10 +12,10 @@ class AddressModel {
   final bool isActive;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final LocationModel? location; // optional nested object
+  final LocationModel? location;
 
   AddressModel({
-    required this.id,
+    this.id,
     required this.street,
     required this.ward,
     required this.district,
@@ -32,7 +32,7 @@ class AddressModel {
   /// From JSON (map from API/DB)
   factory AddressModel.fromJson(Map<String, dynamic> json) {
     return AddressModel(
-      id: json['id'] as int,
+      id: json['id'] != null ? json['id'] as int : null,
       street: json['street'] as String,
       ward: json['ward'] as String,
       district: json['district'] as String,

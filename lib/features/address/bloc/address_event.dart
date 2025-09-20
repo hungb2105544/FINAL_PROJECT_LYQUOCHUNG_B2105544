@@ -10,6 +10,8 @@ class AddAddressEvent extends AddressEvent {
   final UserAddressModel newAddress;
 
   AddAddressEvent(this.newAddress);
+  @override
+  List<Object?> get props => [newAddress];
 }
 
 class UpdatedAddress extends AddressEvent {
