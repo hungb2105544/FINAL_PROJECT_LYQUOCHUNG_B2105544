@@ -13,6 +13,8 @@ import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_ac
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
 import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
+import 'package:ecommerce_app/features/voucher/bloc/voucher_bloc.dart';
+import 'package:ecommerce_app/features/voucher/data/repositories/voucher_repository_impl.dart';
 import 'package:ecommerce_app/service/auth_deep_link_handler.dart';
 import 'package:ecommerce_app/service/deep_link_service.dart';
 import 'package:flutter/material.dart';
@@ -64,6 +66,12 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        Provider(create: (context) => VoucherRepositoryImpl()),
+        BlocProvider(
+          create: (context) => VoucherBloc(
+            context.read<VoucherRepositoryImpl>(),
+          ),
+        ),
         Provider(
           create: (context) =>
               UserAddressRepositoryImpl(), // Hoặc tên class của bạn

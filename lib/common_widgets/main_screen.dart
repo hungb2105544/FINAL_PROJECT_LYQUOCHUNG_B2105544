@@ -2,6 +2,7 @@ import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:ecommerce_app/favorite_sceen.dart';
 import 'package:ecommerce_app/features/product/presentation/home_page.dart';
 import 'package:ecommerce_app/features/profile/presentation/profile_screen.dart';
+import 'package:ecommerce_app/features/voucher/presentation/voucher_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -21,14 +22,14 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<IconData> _navIcons = [
     Icons.home_outlined,
-    Icons.favorite_border,
+    FontAwesomeIcons.magnifyingGlass,
     Icons.local_activity_outlined,
     Icons.person_outline,
   ];
 
   final List<IconData> _navIconsSelected = [
     Icons.home_rounded,
-    Icons.favorite,
+    FontAwesomeIcons.magnifyingGlass,
     Icons.local_activity,
     Icons.person,
   ];
@@ -103,7 +104,7 @@ class _MainScreenState extends State<MainScreen> {
         children: const [
           HomePage(),
           FavoriteSceen(),
-          FavoriteSceen(),
+          VoucherPage(),
           ProfileScreen(),
         ],
       ),
