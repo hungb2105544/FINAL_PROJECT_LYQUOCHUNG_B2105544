@@ -113,17 +113,20 @@ class SimplifiedVariantModelAdapter
     return SimplifiedVariantModel(
       color: fields[0] as String,
       imageUrl: fields[1] as String?,
+      variantId: fields[2] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, SimplifiedVariantModel obj) {
     writer
-      ..writeByte(2)
+      ..writeByte(3)
       ..writeByte(0)
       ..write(obj.color)
       ..writeByte(1)
-      ..write(obj.imageUrl);
+      ..write(obj.imageUrl)
+      ..writeByte(2)
+      ..write(obj.variantId);
   }
 
   @override

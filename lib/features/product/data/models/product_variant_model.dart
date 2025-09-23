@@ -91,16 +91,19 @@ class SimplifiedVariantModel extends HiveObject {
 
   @HiveField(1)
   final String? imageUrl;
-
+  @HiveField(2) // THÊM MỚI
+  final int? variantId;
   SimplifiedVariantModel({
     required this.color,
     this.imageUrl,
+    this.variantId,
   });
 
   factory SimplifiedVariantModel.fromJson(Map<String, dynamic> json) {
     return SimplifiedVariantModel(
       color: json['color'] ?? '',
       imageUrl: json['image_url'],
+      variantId: json['variant_id'],
     );
   }
 

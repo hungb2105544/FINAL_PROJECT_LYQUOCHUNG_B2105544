@@ -400,6 +400,22 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
     }
   }
 
+  Future<Map<String, dynamic>?> fetchNearestStock(
+      String userId, int productId, id,
+      {int? variantId}) async {
+    final response =
+        await client.rpc('get_nearest_branch_stock_by_user', params: {
+      'user_id': userId,
+      'product_id': productId,
+      'variant_id': variantId,
+    });
+
+    if (response.data != null && response.data.isNotEmpty) {
+      return response.data[0]; // branch gần nhất
+    }
+    return null;
+  }
+
   Future<void> _cacheProducts(
       String cacheKey, List<ProductModel> products) async {
     try {

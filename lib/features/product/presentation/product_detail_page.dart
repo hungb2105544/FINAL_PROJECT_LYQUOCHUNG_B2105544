@@ -1,10 +1,11 @@
-import 'dart:convert';
-
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/custom_widget.dart';
 import 'package:ecommerce_app/common_widgets/product_variant_card.dart';
+import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/product/data/models/branch_stock_model.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
 import 'package:ecommerce_app/features/product/data/models/product_variant_model.dart';
+import 'package:ecommerce_app/features/product/widget/custom_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -18,10 +19,65 @@ class ProductDetailPage extends StatefulWidget {
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _currentIndex = 0;
-
   String selectedSize = "M";
   SimplifiedVariantModel? selectedColor;
   int quantity = 1;
+
+  BranchStockModel? nearestStock;
+  bool isLoadingStock = false;
+  String? stockError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNearestStock();
+  }
+
+  Future<void> _loadNearestStock() async {
+    final userId = SupabaseConfig.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    setState(() {
+      isLoadingStock = true;
+      stockError = null;
+    });
+
+    try {
+      final stock = await _fetchNearestStock(
+          userId, widget.product.id!, selectedColor?.variantId);
+
+      setState(() {
+        nearestStock = stock;
+        isLoadingStock = false;
+      });
+    } catch (e) {
+      setState(() {
+        stockError = e.toString();
+        isLoadingStock = false;
+      });
+    }
+  }
+
+  Future<BranchStockModel?> _fetchNearestStock(
+      String userId, int productId, int? variantId) async {
+    try {
+      final response =
+          await SupabaseConfig.client.rpc('get_nearest_branch_stock', params: {
+        'user_id': userId,
+        'product_id': productId,
+        if (variantId != null) 'variant_id': variantId,
+      });
+
+      if (response != null && response.isNotEmpty) {
+        return BranchStockModel.fromJson(response.first);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching nearest stock: $e');
+      rethrow;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final productSize = widget.product.productSize;
@@ -37,6 +93,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     final discountedPrice = originalPrice * (1 - (discount / 100));
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -150,6 +207,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       ),
                     ),
 
+                  // Stock Info - THÊM MỚI
+                  const SizedBox(height: 8),
+                  StockInfoCard(
+                    isLoading: isLoadingStock,
+                    error: stockError,
+                    stock: nearestStock,
+                  ),
+                  const SizedBox(height: 16),
+
                   // Product description
                   Text(
                     widget.product.description ?? "Không có mô tả",
@@ -255,7 +321,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   ),
 
                   // Color selection
-
                   widget.product.simplifiedVariants!.isNotEmpty
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,8 +338,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             const SizedBox(height: 8),
                             SizedBox(
                               child: SingleChildScrollView(
-                                scrollDirection:
-                                    Axis.horizontal, // scroll ngang
+                                scrollDirection: Axis.horizontal,
                                 child: Row(
                                   children: widget.product.simplifiedVariants!
                                       .map((variant) {
@@ -284,13 +348,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         setState(() {
                                           selectedColor = variant;
                                         });
+                                        // Reload stock khi đổi variant
+                                        _loadNearestStock();
                                       },
                                       child: Container(
                                         width:
                                             MediaQuery.of(context).size.width *
                                                 0.3,
-                                        margin: const EdgeInsets.only(
-                                            right: 12), // khoảng cách ngang
+                                        margin:
+                                            const EdgeInsets.only(right: 12),
                                         decoration: BoxDecoration(
                                           border: Border.all(
                                             color: isSelected
@@ -315,8 +381,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                                   ),
                                                 ]
                                               : [],
-                                          borderRadius: BorderRadius.circular(
-                                              12), // bo góc viền
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: ProductVariantCard(
                                           color: variant.color,
@@ -332,9 +398,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         )
                       : const SizedBox(height: 10),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
+
                   // Quantity selection
                   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -367,9 +432,22 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             ),
                             IconButton(
                               onPressed: () {
-                                setState(() {
-                                  quantity++;
-                                });
+                                // Giới hạn số lượng theo stock
+                                final maxQuantity =
+                                    nearestStock?.availableStock ?? 999;
+                                if (quantity < maxQuantity) {
+                                  setState(() {
+                                    quantity++;
+                                  });
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content:
+                                          Text("Chỉ còn $maxQuantity sản phẩm"),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
                               },
                               icon: const Icon(Icons.add_circle_outline),
                             ),
@@ -399,30 +477,40 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (widget.product.brand!.brandName != null)
-                          _buildSpecRow(
-                              "Thương hiệu", widget.product.brand!.brandName),
+                          SpecRow(
+                              label: "Thương hiệu",
+                              value: widget.product.brand!.brandName!),
                         if (widget.product.originCountry != null)
-                          _buildSpecRow(
-                              "Xuất xứ", widget.product.originCountry!),
+                          SpecRow(
+                              label: "Xuất xứ",
+                              value: widget.product.originCountry!),
                         if (widget.product.material != null)
-                          _buildSpecRow("Chất liệu", widget.product.material!),
+                          SpecRow(
+                              label: "Chất liệu",
+                              value: widget.product.material!),
                         if (widget.product.color != null)
-                          _buildSpecRow("Màu sắc", widget.product.color!),
+                          SpecRow(
+                              label: "Màu sắc", value: widget.product.color!),
                         if (widget.product.features != null)
-                          _buildSpecRow("Kiểu dáng",
-                              "${widget.product.features?["style"] ?? 'N/A'}, ${widget.product.features?["pocket"] ?? 'N/A'}"),
+                          SpecRow(
+                              label: "Kiểu dáng",
+                              value:
+                                  "${widget.product.features?["style"] ?? 'N/A'}, ${widget.product.features?["pocket"] ?? 'N/A'}"),
                         if (widget.product.weight != null)
-                          _buildSpecRow(
-                              "Trọng lượng", "${widget.product.weight}kg"),
+                          SpecRow(
+                              label: "Trọng lượng",
+                              value: "${widget.product.weight}kg"),
                         if (widget.product.dimensions != null)
-                          _buildSpecRow(
-                              "Kích thước",
-                              "${widget.product.dimensions?["width_cm"] ?? 'N/A'} cm x "
+                          SpecRow(
+                              label: "Kích thước",
+                              value:
+                                  "${widget.product.dimensions?["width_cm"] ?? 'N/A'} cm x "
                                   "${widget.product.dimensions?["height_cm"] ?? 'N/A'} cm x "
                                   "${widget.product.dimensions?["length_cm"] ?? 'N/A'} cm"),
                         if (widget.product.warrantyMonths != null)
-                          _buildSpecRow("Bảo hành",
-                              "${widget.product.warrantyMonths} tháng"),
+                          SpecRow(
+                              label: "Bảo hành",
+                              value: "${widget.product.warrantyMonths} tháng"),
                       ],
                     ),
                   ),
@@ -497,7 +585,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     const SizedBox(height: 20),
                   ],
 
-                  // Return Policy Section (keep existing)
+                  // Return Policy Section
                   Text(
                     "Chính sách đổi trả",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -588,21 +676,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             ],
                           ),
                           const SizedBox(width: 20),
-                          // Rating distribution could be added here if needed
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
                   ],
 
-                  // Sample reviews (keep existing)
-                  _buildReviewItem(
+                  // Sample reviews
+                  ReviewItem(
                     avatar: "A",
                     name: "Nguyễn Văn A",
                     rating: 5,
                     comment: "Sản phẩm chất lượng, giao hàng nhanh.",
                   ),
-                  _buildReviewItem(
+                  ReviewItem(
                     avatar: "B",
                     name: "Trần Thị B",
                     rating: 4,
@@ -624,155 +711,219 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: [
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor: (nearestStock?.availableStock ?? 0) > 0
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 ),
-                onPressed: () {
-                  debugPrint(
-                      "Thêm vào giỏ: size=$selectedSize, màu=$selectedColor, số lượng=$quantity");
-                },
-                child: const Text(
-                  "Thêm vào giỏ hàng",
-                  style: TextStyle(fontSize: 18),
+                onPressed: (nearestStock?.availableStock ?? 0) > 0
+                    ? () {
+                        showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(16)),
+                          ),
+                          builder: (context) {
+                            // Lấy giá và giảm giá
+                            final originalPrice =
+                                widget.product.priceHistoryModel?.isNotEmpty ==
+                                        true
+                                    ? (widget.product.priceHistoryModel!.first
+                                                .price ??
+                                            0)
+                                        .toDouble()
+                                    : 0.0;
+
+                            final discount =
+                                widget.product.discounts?.isNotEmpty == true
+                                    ? (widget.product.discounts!.first
+                                                .discountPercentage ??
+                                            0)
+                                        .toDouble()
+                                    : 0.0;
+
+                            final discountedPrice =
+                                originalPrice * (1 - (discount / 100));
+
+                            final totalPrice = discount > 0
+                                ? discountedPrice * quantity
+                                : originalPrice * quantity;
+
+                            final variantText = [
+                              if (selectedSize.isNotEmpty)
+                                "Size: $selectedSize",
+                              if (selectedColor != null)
+                                "Màu: ${selectedColor!.color}"
+                            ].join(", ");
+
+                            final stockLeft = nearestStock?.availableStock ?? 0;
+
+                            return Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          selectedColor?.imageUrl ??
+                                              widget.product.imageUrls!.first,
+                                          width: 80,
+                                          height: 80,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(widget.product.name ?? "",
+                                                style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 6),
+                                            if (variantText.isNotEmpty)
+                                              Text(variantText),
+                                            Text("Số lượng chọn: $quantity"),
+                                            if (nearestStock != null) ...[
+                                              Text(
+                                                "Chi nhánh: ${nearestStock!.branchName}",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                              Text(
+                                                "Còn lại: $stockLeft sản phẩm",
+                                                style: TextStyle(
+                                                  color: stockLeft > 0
+                                                      ? Colors.green
+                                                      : Colors.red,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      )
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Thành tiền có giảm giá
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text("Thành tiền:",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            currencyFormatter
+                                                .format(totalPrice),
+                                            style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.red),
+                                          ),
+                                          if (discount > 0)
+                                            Text(
+                                              currencyFormatter.format(
+                                                  originalPrice * quantity),
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                decoration:
+                                                    TextDecoration.lineThrough,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: quantity <= stockLeft
+                                          ? () {
+                                              // Thêm vào giỏ hàng logic
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                      "Đã thêm vào giỏ hàng!"),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                            }
+                                          : null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: quantity <= stockLeft
+                                            ? null
+                                            : Colors.grey,
+                                      ),
+                                      child: Text(
+                                        quantity <= stockLeft
+                                            ? "Xác nhận thêm"
+                                            : "Vượt quá số lượng có sẵn",
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }
+                    : null,
+                child: Text(
+                  (nearestStock?.availableStock ?? 0) > 0
+                      ? "Thêm vào giỏ hàng"
+                      : "Hết hàng",
+                  style: const TextStyle(fontSize: 18),
                 ),
               ),
-              SizedBox(
-                width: 4,
-              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
-                    debugPrint(
-                        "Mua ngay: size=$selectedSize, màu=$selectedColor, số lượng=$quantity");
-                  },
-                  child: const Text(
-                    "Mua ngay",
-                    style: TextStyle(fontSize: 18),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: (nearestStock?.availableStock ?? 0) > 0
+                        ? null
+                        : Colors.grey,
+                  ),
+                  onPressed: (nearestStock?.availableStock ?? 0) > 0
+                      ? () {
+                          debugPrint(
+                              "Mua ngay: size=$selectedSize, màu=$selectedColor, số lượng=$quantity");
+                          // Logic mua ngay
+                        }
+                      : null,
+                  child: Text(
+                    (nearestStock?.availableStock ?? 0) > 0
+                        ? "Mua ngay"
+                        : "Hết hàng",
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSpecRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              "$label:",
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatFeatures(Map<String, dynamic> features) {
-    List<String> featuresList = [];
-
-    features.forEach((key, value) {
-      if (value != null) {
-        String formattedKey = _formatKey(key);
-        featuresList.add("$formattedKey: $value");
-      }
-    });
-
-    return featuresList.join(", ");
-  }
-
-  String _formatDimensions(Map<String, dynamic> dimensions) {
-    double? width = dimensions['width_cm']?.toDouble();
-    double? height = dimensions['height_cm']?.toDouble();
-    double? length = dimensions['length_cm']?.toDouble();
-
-    List<String> dimensionParts = [];
-
-    if (width != null) dimensionParts.add("R: ${width}cm");
-    if (height != null) dimensionParts.add("C: ${height}cm");
-    if (length != null) dimensionParts.add("D: ${length}cm");
-
-    return dimensionParts.join(" x ");
-  }
-
-  String _formatKey(String key) {
-    switch (key.toLowerCase()) {
-      case 'style':
-        return 'Phong cách';
-      case 'pocket':
-        return 'Túi';
-      case 'sleeve':
-        return 'Tay áo';
-      case 'collar':
-        return 'Cổ áo';
-      case 'material':
-        return 'Chất liệu';
-      case 'pattern':
-        return 'Họa tiết';
-      case 'fit':
-        return 'Form dáng';
-      default:
-        return key
-            .replaceAll('_', ' ')
-            .toLowerCase()
-            .split(' ')
-            .map((word) => word.isNotEmpty
-                ? word[0].toUpperCase() + word.substring(1)
-                : '')
-            .join(' ');
-    }
-  }
-
-  Widget _buildReviewItem({
-    required String avatar,
-    required String name,
-    required double rating,
-    required String comment,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            child: Text(avatar),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                RatingStars(rating: rating),
-                const SizedBox(height: 4),
-                Text(comment),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
