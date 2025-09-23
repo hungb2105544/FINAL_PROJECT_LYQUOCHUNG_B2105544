@@ -4,4 +4,5 @@ abstract class VoucherRepository {
   Future<List<VoucherModel>> fetchVouchers();
   Future<List<VoucherModel>> fetchAvailableVouchers(String userId);
   Future<void> saveVoucher(String userId, String voucherId);
+  Future<List<VoucherModel>> getVouchersByUserId(String userId);
 }

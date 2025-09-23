@@ -88,27 +88,21 @@ class _HomePageState extends State<HomePage> {
               controller: _scrollController,
               child: Column(
                 children: [
-                  // Quảng cáo
                   _buildCarouselAd(screenHeight, screenWidth, adImages),
                   const SizedBox(height: 20),
 
-                  // Tiêu đề Danh mục
                   _buildSectionTitle(context, "Danh mục sản phẩm"),
 
-                  // Danh mục sản phẩm
                   _buildCategoriesSection(),
 
                   const SizedBox(height: 20),
 
-                  // Tiêu đề Sản phẩm với cache status
                   _buildProductsSectionTitle(context),
 
                   const SizedBox(height: 12),
 
-                  // FIX: Improved BlocBuilder with better loading states
                   BlocConsumer<ProductBloc, ProductState>(
                     listener: (context, state) {
-                      // FIX: Show snackbar for errors
                       if (state.hasError) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

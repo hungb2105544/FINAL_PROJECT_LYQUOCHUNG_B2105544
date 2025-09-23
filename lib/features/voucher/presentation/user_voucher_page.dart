@@ -9,46 +9,31 @@ import 'package:ecommerce_app/features/voucher/widget/voucher_filter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class VoucherPage extends StatefulWidget {
-  const VoucherPage({super.key});
+class UserVoucherPage extends StatefulWidget {
+  const UserVoucherPage({super.key});
 
   @override
-  State<VoucherPage> createState() => _VoucherPageState();
+  State<UserVoucherPage> createState() => _UserVoucherPageState();
 }
 
-class _VoucherPageState extends State<VoucherPage> {
-  String? userId;
+class _UserVoucherPageState extends State<UserVoucherPage> {
   String selectedType = 'all';
   String selectedStatus = 'all';
+  String? userId;
 
   @override
   void initState() {
     super.initState();
-    _initializeUser();
-  }
-
-  void _initializeUser() {
     final currentUser = SupabaseConfig.client.auth.currentUser;
     if (currentUser != null) {
       userId = currentUser.id;
-      context.read<VoucherBloc>().add(FetchVouchersEvent(userId!));
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng đăng nhập để sử dụng tính năng này'),
-          ),
-        );
-      });
+      context.read<VoucherBloc>().add(GetVoucherByUserId(userId!));
     }
   }
 
   List<VoucherModel> _applyFilters(List<VoucherModel> vouchers) {
     return vouchers.where((voucher) {
-      // Lọc theo loại
       bool typeMatch = selectedType == 'all' || voucher.type == selectedType;
-
-      // Lọc theo trạng thái
       bool statusMatch = true;
       if (selectedStatus == 'saved') {
         statusMatch = voucher.isSaved;
@@ -83,27 +68,14 @@ class _VoucherPageState extends State<VoucherPage> {
   @override
   Widget build(BuildContext context) {
     if (userId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Danh sách Voucher")),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.login, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text(
-                'Vui lòng đăng nhập để xem voucher',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
+      return const Scaffold(
+        body: Center(child: Text("Vui lòng đăng nhập để xem voucher")),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Danh sách Voucher"),
+        title: const Text('Vouchers của tôi'),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_alt),
@@ -111,39 +83,14 @@ class _VoucherPageState extends State<VoucherPage> {
           ),
         ],
       ),
-      body: BlocConsumer<VoucherBloc, VoucherState>(
-        listener: (context, state) {
-          if (state is VoucherError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        },
+      body: BlocBuilder<VoucherBloc, VoucherState>(
         builder: (context, state) {
           if (state is VoucherLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is VoucherLoaded) {
-            final vouchers = state.vouchers;
+            final vouchers = _applyFilters(state.vouchers);
 
             if (vouchers.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.card_giftcard, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text("Không có voucher nào"),
-                  ],
-                ),
-              );
-            }
-
-            final filteredVouchers = _applyFilters(vouchers);
-
-            if (filteredVouchers.isEmpty) {
               return Column(
                 children: [
                   FilterSummary(
@@ -158,14 +105,7 @@ class _VoucherPageState extends State<VoucherPage> {
                   ),
                   const Expanded(
                     child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.search_off, size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text("Không tìm thấy voucher phù hợp với bộ lọc"),
-                        ],
-                      ),
+                      child: Text('Không tìm thấy voucher nào phù hợp'),
                     ),
                   ),
                 ],
@@ -189,16 +129,16 @@ class _VoucherPageState extends State<VoucherPage> {
                     onRefresh: () async {
                       context
                           .read<VoucherBloc>()
-                          .add(FetchVouchersEvent(userId!));
+                          .add(GetVoucherByUserId(userId!));
                     },
                     child: ListView.separated(
                       padding: const EdgeInsets.all(16.0),
-                      itemCount: filteredVouchers.length,
+                      itemCount: vouchers.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 16.0),
                       itemBuilder: (context, index) {
-                        final voucher = filteredVouchers[index];
+                        final voucher = vouchers[index];
                         return VoucherCard(
-                          isUserVoucher: false,
+                          isUserVoucher: true,
                           voucher: voucher,
                           userId: userId!,
                         );
@@ -208,8 +148,12 @@ class _VoucherPageState extends State<VoucherPage> {
                 ),
               ],
             );
+          } else if (state is NoVoucherFound) {
+            return const Center(child: Text('Bạn chưa có voucher nào.'));
+          } else if (state is VoucherError) {
+            return Center(child: Text('Error: ${state.message}'));
           }
-          return const Center(child: Text("Không có dữ liệu"));
+          return const SizedBox.shrink();
         },
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:ecommerce_app/favorite_sceen.dart';
 import 'package:ecommerce_app/features/product/presentation/home_page.dart';
+import 'package:ecommerce_app/features/product/presentation/search_product_page.dart';
 import 'package:ecommerce_app/features/profile/presentation/profile_screen.dart';
 import 'package:ecommerce_app/features/voucher/presentation/voucher_page.dart';
 import 'package:flutter/material.dart';
@@ -103,7 +104,7 @@ class _MainScreenState extends State<MainScreen> {
         physics: const NeverScrollableScrollPhysics(),
         children: const [
           HomePage(),
-          FavoriteSceen(),
+          ProductSearchPage(),
           VoucherPage(),
           ProfileScreen(),
         ],

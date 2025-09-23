@@ -15,3 +15,8 @@ class SaveVoucherEvent extends VoucherEvent {
   final String voucherId;
   SaveVoucherEvent(this.userId, this.voucherId);
 }
+
+class GetVoucherByUserId extends VoucherEvent {
+  final String userId;
+  GetVoucherByUserId(this.userId);
+}

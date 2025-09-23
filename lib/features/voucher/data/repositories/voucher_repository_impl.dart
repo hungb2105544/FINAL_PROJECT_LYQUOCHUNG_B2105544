@@ -133,4 +133,19 @@ class VoucherRepositoryImpl implements VoucherRepository {
       return [];
     }
   }
+
+  @override
+  Future<List<VoucherModel>> getVouchersByUserId(String userId) async {
+    try {
+      final data = await client.from('user_vouchers').select('''*,
+        voucher_id(*)
+      ''').eq('user_id', userId).eq('is_used', false);
+      print(data.toString());
+      return (data as List)
+          .map((json) => VoucherModel.fromJson(json['voucher_id']))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }

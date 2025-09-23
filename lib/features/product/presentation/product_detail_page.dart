@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/custom_widget.dart';
 import 'package:ecommerce_app/common_widgets/product_variant_card.dart';

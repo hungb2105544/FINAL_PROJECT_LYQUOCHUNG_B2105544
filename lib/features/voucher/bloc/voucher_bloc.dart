@@ -9,6 +9,24 @@ class VoucherBloc extends Bloc<VoucherEvent, VoucherState> {
   VoucherBloc(this._voucherRepository) : super(VoucherInitial()) {
     on<FetchVouchersEvent>(_onFetchVouchers);
     on<SaveVoucherEvent>(_onSaveVoucher);
+    on<GetVoucherByUserId>(_onGetVoucherByUserId);
+  }
+
+  void _onGetVoucherByUserId(
+      GetVoucherByUserId event, Emitter<VoucherState> emit) async {
+    emit(VoucherLoading());
+    try {
+      final vouchers =
+          await _voucherRepository.getVouchersByUserId(event.userId);
+      print(vouchers.toString());
+      if (vouchers.isEmpty) {
+        emit(NoVoucherFound());
+      } else {
+        emit(VoucherLoaded(vouchers: vouchers));
+      }
+    } catch (e) {
+      emit(VoucherError(e.toString()));
+    }
   }
 
   void _onFetchVouchers(
