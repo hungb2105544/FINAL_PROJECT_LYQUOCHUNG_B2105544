@@ -5,6 +5,9 @@ import 'package:ecommerce_app/features/address/data/repositories/user_address_re
 import 'package:ecommerce_app/features/auth/bloc/auth_bloc.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
 import 'package:ecommerce_app/core/theme/theme_app.dart';
+import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
+import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
+import 'package:ecommerce_app/features/cart/data/repositories/cart_repositories.impl.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
@@ -66,7 +69,12 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        Provider(create: (context) => CartRepositoryImpl()),
         Provider(create: (context) => VoucherRepositoryImpl()),
+        BlocProvider(
+            create: (context) => CartBloc(
+                  cartRepository: context.read<CartRepositoryImpl>(),
+                )),
         BlocProvider(
           create: (context) => VoucherBloc(
             context.read<VoucherRepositoryImpl>(),

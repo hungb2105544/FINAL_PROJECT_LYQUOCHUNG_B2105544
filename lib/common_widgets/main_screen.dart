@@ -1,11 +1,16 @@
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
-import 'package:ecommerce_app/favorite_sceen.dart';
+import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
+import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
+import 'package:ecommerce_app/features/cart/bloc/cart_state.dart';
+import 'package:ecommerce_app/features/cart/presentation/cart_page.dart';
 import 'package:ecommerce_app/features/product/presentation/home_page.dart';
 import 'package:ecommerce_app/features/product/presentation/search_product_page.dart';
 import 'package:ecommerce_app/features/profile/presentation/profile_screen.dart';
 import 'package:ecommerce_app/features/voucher/presentation/voucher_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:badges/badges.dart' as badges;
 
@@ -70,25 +75,55 @@ class _MainScreenState extends State<MainScreen> {
           height: 46,
         ),
         actions: [
-          badges.Badge(
-            badgeStyle: const badges.BadgeStyle(
-              badgeColor: Colors.red,
-              padding: EdgeInsets.all(6),
-            ),
-            position: badges.BadgePosition.topEnd(top: -2, end: -4),
-            badgeContent: const Text(
-              '1',
-              style: TextStyle(color: Colors.white, fontSize: 8),
-            ),
-            child: IconButton(
-              icon: const Icon(
-                FontAwesomeIcons.cartShopping,
-                size: 18,
-              ),
-              onPressed: () {
-                print("Đi tới giỏ hàng");
-              },
-            ),
+          BlocBuilder<CartBloc, CartState>(
+            builder: (context, state) {
+              int itemCount = 0;
+              if (state is CartLoaded) {
+                itemCount = state.totalItems;
+              } else if (state is CartOperationSuccess) {
+                final String userId =
+                    SupabaseConfig.client.auth.currentUser?.id ?? '';
+                if (userId.isNotEmpty) {
+                  context.read<CartBloc>().add(GetTotalCartItems(userId));
+                }
+              }
+              return badges.Badge(
+                badgeStyle: const badges.BadgeStyle(
+                  badgeColor: Colors.red,
+                  padding: EdgeInsets.all(6),
+                ),
+                position: badges.BadgePosition.topEnd(top: -2, end: -4),
+                badgeContent: Text(
+                  itemCount > 99 ? '99+' : itemCount.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 8),
+                ),
+                showBadge: itemCount > 0, // Chỉ hiện badge khi có sản phẩm
+                child: IconButton(
+                  icon: const Icon(
+                    FontAwesomeIcons.cartShopping,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    final String userId =
+                        SupabaseConfig.client.auth.currentUser?.id ?? '';
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BlocProvider.value(
+                          value: context.read<CartBloc>(),
+                          child: CartPage(userId: userId),
+                        ),
+                      ),
+                    ).then((_) {
+                      // Reload cart data khi quay lại từ CartPage
+                      if (userId.isNotEmpty) {
+                        context.read<CartBloc>().add(GetTotalCartItems(userId));
+                      }
+                    });
+                  },
+                ),
+              );
+            },
           ),
           const SizedBox(width: 16),
         ],
