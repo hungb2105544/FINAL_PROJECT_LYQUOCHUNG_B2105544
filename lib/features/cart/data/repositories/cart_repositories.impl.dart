@@ -107,18 +107,8 @@ class CartRepositoryImpl implements CartRepository {
   Future<CartItem> addToCart(
       String productId, int quantity, String userId, String? variantId) async {
     try {
-      print('=== ADD TO CART WITH PRICE ===');
-      print(
-          'productId: $productId, quantity: $quantity, variantId: $variantId');
-
-      // Lấy giá hiện tại của sản phẩm
       final currentPrice = await _getCurrentProductPrice(productId, variantId);
-      print('Current price: $currentPrice');
-
       final cart = await getCart(userId);
-      print('Cart ID: ${cart.id}');
-
-      // Kiểm tra sản phẩm đã tồn tại
       final existingItems = await client
           .from('cart_items')
           .select()
@@ -247,22 +237,46 @@ class CartRepositoryImpl implements CartRepository {
     try {
       print('Getting cart items for cartId: $cartId');
 
-      final response = await client
-          .from('cart_items')
-          .select()
-          .eq('cart_id', int.parse(cartId));
-
-      print('Cart items response: $response');
+      final response = await client.from('cart_items').select('''
+      *,
+      product_id(name, image_urls),
+      variant_id(additional_price, product_variant_images(image_url))
+    ''').eq('cart_id', int.parse(cartId));
 
       final List<CartItem> items = response.map((item) {
+        final product = item['product_id'] as Map<String, dynamic>?;
+        final variant = item['variant_id'] as Map<String, dynamic>?;
+        final nameProduct = product?['name'] as String?;
+
+        String? imageUrl;
+        if (variant != null &&
+            variant['product_variant_images'] is List &&
+            (variant['product_variant_images'] as List).isNotEmpty) {
+          imageUrl = (variant['product_variant_images'] as List)
+              .first['image_url'] as String?;
+        } else if (product != null &&
+            product['image_urls'] is List &&
+            (product['image_urls'] as List).isNotEmpty) {
+          imageUrl = (product['image_urls'] as List).first as String?;
+        }
+
         return CartItem(
-          id: item['id'],
-          cartId: item['cart_id'],
-          productId: item['product_id'],
-          variantId: item['variant_id'],
-          quantity: item['quantity'],
+          id: item['id'] as int,
+          cartId: item['cart_id'] as int,
+          productId: item['product_id'] is Map<String, dynamic>
+              ? (item['product_id']['id'] ?? 0) as int
+              : item['product_id'] as int,
+          variantId: item['variant_id'] is Map<String, dynamic>
+              ? (item['variant_id']['id'] ?? 0) as int
+              : item['variant_id'] as int?,
+          quantity: item['quantity'] as int,
           price: (item['price'] as num?)?.toDouble() ?? 0.0,
-          addedAt: DateTime.now(), // HANDLE NULL PRICE
+          addedAt: DateTime.tryParse(item['added_at']?.toString() ?? '') ??
+              DateTime.now(),
+          productData: product,
+          variantData: variant,
+          nameProduct: nameProduct,
+          imageProduct: imageUrl,
         );
       }).toList();
 
@@ -273,6 +287,36 @@ class CartRepositoryImpl implements CartRepository {
       throw Exception('Get cart items failed: $e');
     }
   }
+
+  // @override
+  // Future<List<CartItem>> getCartItems(String cartId) async {
+  //   try {
+  //     print('Getting cart items for cartId: $cartId');
+
+  //     final response = await client
+  //         .from('cart_items')
+  //         .select()
+  //         .eq('cart_id', int.parse(cartId));
+
+  //     final List<CartItem> items = response.map((item) {
+  //       return CartItem(
+  //         id: item['id'],
+  //         cartId: item['cart_id'],
+  //         productId: item['product_id'],
+  //         variantId: item['variant_id'],
+  //         quantity: item['quantity'],
+  //         price: (item['price'] as num?)?.toDouble() ?? 0.0,
+  //         addedAt: DateTime.now(), // HANDLE NULL PRICE
+  //       );
+  //     }).toList();
+
+  //     print('Parsed ${items.length} cart items');
+  //     return items;
+  //   } catch (e) {
+  //     print('GetCartItems Error: $e');
+  //     throw Exception('Get cart items failed: $e');
+  //   }
+  // }
 
   // THÊM METHOD MỚI: CẬP NHẬT GIÁ CHO TẤT CẢ ITEMS (nếu cần)
   Future<void> updateCartPrices(String userId) async {

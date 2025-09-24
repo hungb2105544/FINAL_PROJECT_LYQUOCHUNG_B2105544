@@ -12,6 +12,9 @@ class CartItem extends Equatable {
   final Map<String, dynamic>? productData;
   final Map<String, dynamic>? variantData;
 
+  final String? nameProduct;
+  final String? imageProduct;
+
   const CartItem({
     required this.id,
     required this.cartId,
@@ -22,6 +25,8 @@ class CartItem extends Equatable {
     required this.price,
     this.productData,
     this.variantData,
+    this.nameProduct,
+    this.imageProduct,
   });
 
   factory CartItem.fromMap(Map<String, dynamic> map) {
@@ -39,6 +44,8 @@ class CartItem extends Equatable {
           ? Map<String, dynamic>.from(map['variant_id'])
           : null,
       price: (map['price'] as num).toDouble(),
+      nameProduct: map['name_product'] as String?,
+      imageProduct: map['image_product'] as String?,
     );
   }
 

@@ -189,11 +189,9 @@ class CartPage extends StatelessWidget {
       symbol: '₫',
     );
 
-    // Calculate total (giả sử có giá trong database)
     double total = 0;
     for (var item in state.items) {
-      // Tạm thời dùng giá giả, thực tế cần lấy từ product
-      total += (item.price * item.quantity); // 100k per item
+      total += (item.price * item.quantity);
     }
 
     return Column(
@@ -232,20 +230,32 @@ class CartPage extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image Placeholder
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
+            if (item.imageProduct != null)
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(item.imageProduct!),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.image,
+                  color: Colors.grey[400],
+                  size: 32,
+                ),
               ),
-              child: Icon(
-                Icons.image,
-                color: Colors.grey[400],
-                size: 32,
-              ),
-            ),
 
             const SizedBox(width: 16),
 
@@ -255,7 +265,7 @@ class CartPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Sản phẩm ${item.productId}',
+                    item.nameProduct ?? 'Tên sản phẩm',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
