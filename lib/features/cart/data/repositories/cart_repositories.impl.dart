@@ -41,7 +41,6 @@ class CartRepositoryImpl implements CartRepository {
     try {
       final int pid = int.parse(productId);
 
-      // 1. Lấy giá mới nhất từ product_price_history
       final priceHistoryResponse = await client
           .from('product_price_history')
           .select('price')
@@ -288,37 +287,6 @@ class CartRepositoryImpl implements CartRepository {
     }
   }
 
-  // @override
-  // Future<List<CartItem>> getCartItems(String cartId) async {
-  //   try {
-  //     print('Getting cart items for cartId: $cartId');
-
-  //     final response = await client
-  //         .from('cart_items')
-  //         .select()
-  //         .eq('cart_id', int.parse(cartId));
-
-  //     final List<CartItem> items = response.map((item) {
-  //       return CartItem(
-  //         id: item['id'],
-  //         cartId: item['cart_id'],
-  //         productId: item['product_id'],
-  //         variantId: item['variant_id'],
-  //         quantity: item['quantity'],
-  //         price: (item['price'] as num?)?.toDouble() ?? 0.0,
-  //         addedAt: DateTime.now(), // HANDLE NULL PRICE
-  //       );
-  //     }).toList();
-
-  //     print('Parsed ${items.length} cart items');
-  //     return items;
-  //   } catch (e) {
-  //     print('GetCartItems Error: $e');
-  //     throw Exception('Get cart items failed: $e');
-  //   }
-  // }
-
-  // THÊM METHOD MỚI: CẬP NHẬT GIÁ CHO TẤT CẢ ITEMS (nếu cần)
   Future<void> updateCartPrices(String userId) async {
     try {
       final cart = await getCart(userId);

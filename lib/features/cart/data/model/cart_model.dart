@@ -1,4 +1,3 @@
-// cart_model.dart
 import 'package:ecommerce_app/features/cart/data/model/cart_item_model.dart';
 import 'package:equatable/equatable.dart';
 
@@ -28,7 +27,7 @@ class Cart extends Equatable {
       status: map['status'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
-      items: const [], // Items sẽ được load riêng
+      items: const [],
       totalItems: map['total_items'] as int? ?? 0,
     );
   }

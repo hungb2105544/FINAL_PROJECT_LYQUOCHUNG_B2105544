@@ -256,10 +256,7 @@ class CartPage extends StatelessWidget {
                   size: 32,
                 ),
               ),
-
             const SizedBox(width: 16),
-
-            // Product Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,9 +270,7 @@ class CartPage extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-
                   const SizedBox(height: 4),
-
                   if (item.variantId != null)
                     Text(
                       'Phân loại: Variant ${item.variantId}',
@@ -284,10 +279,7 @@ class CartPage extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
-
                   const SizedBox(height: 8),
-
-                  // Price
                   Text(
                     formatter.format(item.price), // Giá giả
                     style: const TextStyle(
@@ -299,13 +291,9 @@ class CartPage extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // Quantity Controls & Delete
             Column(
               children: [
-                // Delete Button
                 GestureDetector(
                   onTap: () => _showDeleteItemDialog(context, item),
                   child: Container(
@@ -525,8 +513,7 @@ class CartPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         title: const Text('Xóa sản phẩm'),
-        content:
-            Text('Bạn có muốn xóa sản phẩm ${item.productId} khỏi giỏ hàng?'),
+        content: Text('Bạn có muốn xóa sản phẩm này khỏi giỏ hàng?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -551,7 +538,6 @@ class CartPage extends StatelessWidget {
   }
 
   void _proceedToCheckout(BuildContext context, CartLoaded state) {
-    // Navigate to checkout page
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Tiến hành thanh toán ${state.items.length} sản phẩm'),

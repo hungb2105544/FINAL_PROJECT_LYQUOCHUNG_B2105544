@@ -1,4 +1,3 @@
-// cart_item_model.dart
 import 'package:equatable/equatable.dart';
 
 class CartItem extends Equatable {
@@ -60,7 +59,6 @@ class CartItem extends Equatable {
     };
   }
 
-  // Helper methods để lấy thông tin sản phẩm
   String get productName => productData?['name'] ?? 'Unknown Product';
   double get productPrice {
     final price = productData?['price'] ?? 0;
