@@ -103,7 +103,7 @@ class SimplifiedVariantModel extends HiveObject {
     return SimplifiedVariantModel(
       color: json['color'] ?? '',
       imageUrl: json['image_url'],
-      variantId: json['variant_id'],
+      variantId: json['variant_id'] ?? json['id'],
     );
   }
 
@@ -111,6 +111,7 @@ class SimplifiedVariantModel extends HiveObject {
     return {
       'color': color,
       'image_url': imageUrl,
+      'variant_id': variantId,
     };
   }
 

@@ -22,38 +22,45 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       Hive.box<ProductModel>(_productsBoxName);
   Box get _metadataBox => Hive.box(_metadataBoxName);
   List<Map<String, dynamic>> _simplifyProductVariants(List<dynamic> variants) {
-    final Map<String, String?> colorMap = {};
+    final Map<String, Map<String, dynamic>> colorMap = {};
 
     for (final variant in variants) {
       final String? color = variant['color'];
+      final int? variantId = variant['id']; // Lấy variant ID
+
       if (color != null && !colorMap.containsKey(color)) {
         String? imageUrl;
         final images = variant['product_variant_images'];
         if (images is List && images.isNotEmpty) {
           imageUrl = images.first['image_url'];
         }
-        colorMap[color] = imageUrl;
+
+        colorMap[color] = {
+          'id': variantId, // Thêm variant ID vào kết quả
+          'color': color,
+          'image_url': imageUrl,
+        };
       }
     }
 
-    return colorMap.entries
-        .map((entry) => {
-              'color': entry.key,
-              'image_url': entry.value,
-            })
-        .toList();
+    return colorMap.values.toList();
   }
 
   List<Map<String, dynamic>> _processProductResponse(
       List<Map<String, dynamic>> response) {
     return response.map((product) {
-      // Tạo bản copy của product
       final processedProduct = Map<String, dynamic>.from(product);
 
-      // Rút gọn product_variants nếu tồn tại
       if (processedProduct['product_variants'] != null) {
-        processedProduct['product_variants'] =
+        final simplifiedVariants =
             _simplifyProductVariants(processedProduct['product_variants']);
+        processedProduct['product_variants'] = simplifiedVariants;
+
+        print('🎨 Simplified variants for ${product['name']}:');
+        for (final variant in simplifiedVariants) {
+          print(
+              '   - ID: ${variant['id']}, Color: ${variant['color']}, Image: ${variant['image_url']}');
+        }
       }
 
       return processedProduct;

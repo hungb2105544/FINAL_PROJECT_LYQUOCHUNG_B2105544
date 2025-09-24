@@ -40,7 +40,6 @@ class CartRepositoryImpl implements CartRepository {
       String productId, String? variantId) async {
     try {
       final int pid = int.parse(productId);
-
       final priceHistoryResponse = await client
           .from('product_price_history')
           .select('price')
@@ -239,7 +238,7 @@ class CartRepositoryImpl implements CartRepository {
       final response = await client.from('cart_items').select('''
       *,
       product_id(name, image_urls),
-      variant_id(additional_price, product_variant_images(image_url))
+      variant_id(additional_price,color, product_variant_images(image_url))
     ''').eq('cart_id', int.parse(cartId));
 
       final List<CartItem> items = response.map((item) {

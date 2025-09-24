@@ -48,7 +48,9 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       priceHistoryModel:
           (fields[30] as List?)?.cast<ProductPriceHistoryModel>(),
       productSize: (fields[31] as List?)?.cast<ProductSizeModel>(),
-      simplifiedVariants: (fields[32] as List?)?.cast<SimplifiedVariantModel>(),
+      simplifiedVariants: (fields[32] as List?)
+          ?.map((dynamic e) => (e as Map).cast<String, dynamic>())
+          ?.toList(),
       createdAt: fields[22] as DateTime,
       updatedAt: fields[23] as DateTime,
     );
