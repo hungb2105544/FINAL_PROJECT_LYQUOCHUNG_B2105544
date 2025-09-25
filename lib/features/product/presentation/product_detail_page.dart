@@ -1215,22 +1215,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: (nearestStock?.availableStock ?? 0) > 0
-                        ? Theme.of(context).colorScheme.secondary
-                        : Colors.grey,
-                  ),
-                  onPressed: (nearestStock?.availableStock ?? 0) > 0
-                      ? () => _buyNow()
-                      : null,
-                  child: Text(
-                    (nearestStock?.availableStock ?? 0) > 0
-                        ? "Mua ngay"
-                        : "Hết hàng",
-                    style: const TextStyle(fontSize: 18),
-                  ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (nearestStock?.availableStock ?? 0) > 0
+                      ? Theme.of(context).colorScheme.secondary
+                      : Colors.grey,
+                ),
+                onPressed: (nearestStock?.availableStock ?? 0) > 0
+                    ? () => _buyNow()
+                    : null,
+                child: Text(
+                  (nearestStock?.availableStock ?? 0) > 0
+                      ? "Mua ngay"
+                      : "Hết hàng",
+                  style: const TextStyle(fontSize: 18),
                 ),
               ),
             ],
