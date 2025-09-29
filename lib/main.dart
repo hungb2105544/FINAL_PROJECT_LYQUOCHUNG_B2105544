@@ -8,6 +8,8 @@ import 'package:ecommerce_app/core/theme/theme_app.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
 import 'package:ecommerce_app/features/cart/data/repositories/cart_repositories.impl.dart';
+import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
+import 'package:ecommerce_app/features/order/data/repositories/order_repository_impl.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
@@ -20,6 +22,7 @@ import 'package:ecommerce_app/features/voucher/bloc/voucher_bloc.dart';
 import 'package:ecommerce_app/features/voucher/data/repositories/voucher_repository_impl.dart';
 import 'package:ecommerce_app/service/auth_deep_link_handler.dart';
 import 'package:ecommerce_app/service/deep_link_service.dart';
+import 'package:ecommerce_app/service/transaction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -69,6 +72,13 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider(
+          create: (context) => OrderPaymentBloc(
+            orderRepository: OrderRepositoryImpl(
+              transactionService: TransactionService(),
+            ),
+          ),
+        ),
         Provider(create: (context) => CartRepositoryImpl()),
         Provider(create: (context) => VoucherRepositoryImpl()),
         BlocProvider(

@@ -233,58 +233,111 @@ class CartRepositoryImpl implements CartRepository {
   @override
   Future<List<CartItem>> getCartItems(String cartId) async {
     try {
-      print('Getting cart items for cartId: $cartId');
-
       final response = await client.from('cart_items').select('''
-      *,
-      product_id(name, image_urls),
-      variant_id(additional_price,color, product_variant_images(image_url))
-    ''').eq('cart_id', int.parse(cartId));
+          id,
+          cart_id,
+          quantity,
+          price,
+          added_at,
+          products!cart_items_product_id_fkey(id, name, image_urls),
+          product_variants!cart_items_variant_id_fkey(
+            id,
+            additional_price,
+            color,
+            product_variant_images(image_url)
+          )
+        ''').eq('cart_id', int.parse(cartId));
 
-      final List<CartItem> items = response.map((item) {
-        final product = item['product_id'] as Map<String, dynamic>?;
-        final variant = item['variant_id'] as Map<String, dynamic>?;
-        final nameProduct = product?['name'] as String?;
-
-        String? imageUrl;
-        if (variant != null &&
-            variant['product_variant_images'] is List &&
-            (variant['product_variant_images'] as List).isNotEmpty) {
-          imageUrl = (variant['product_variant_images'] as List)
-              .first['image_url'] as String?;
-        } else if (product != null &&
-            product['image_urls'] is List &&
-            (product['image_urls'] as List).isNotEmpty) {
-          imageUrl = (product['image_urls'] as List).first as String?;
-        }
+      return (response as List<dynamic>).map((item) {
+        final product = item['products'] as Map<String, dynamic>?;
+        final variant = item['product_variants'] as Map<String, dynamic>?;
 
         return CartItem(
           id: item['id'] as int,
           cartId: item['cart_id'] as int,
-          productId: item['product_id'] is Map<String, dynamic>
-              ? (item['product_id']['id'] ?? 0) as int
-              : item['product_id'] as int,
-          variantId: item['variant_id'] is Map<String, dynamic>
-              ? (item['variant_id']['id'] ?? 0) as int
-              : item['variant_id'] as int?,
+          productId: product?['id'] as int? ?? 0,
+          variantId: variant?['id'] as int?,
           quantity: item['quantity'] as int,
           price: (item['price'] as num?)?.toDouble() ?? 0.0,
           addedAt: DateTime.tryParse(item['added_at']?.toString() ?? '') ??
               DateTime.now(),
+
+          // raw data
           productData: product,
           variantData: variant,
-          nameProduct: nameProduct,
-          imageProduct: imageUrl,
+
+          // name + image
+          nameProduct: product?['name'] as String?,
+          imageProduct: (variant?['product_variant_images'] is List &&
+                  (variant?['product_variant_images'] as List).isNotEmpty)
+              ? (variant?['product_variant_images'][0]['image_url'] as String?)
+              : ((product?['image_urls'] is List &&
+                      (product?['image_urls'] as List).isNotEmpty)
+                  ? (product?['image_urls'][0] as String?)
+                  : null),
         );
       }).toList();
-
-      print('Parsed ${items.length} cart items');
-      return items;
     } catch (e) {
-      print('GetCartItems Error: $e');
-      throw Exception('Get cart items failed: $e');
+      print("Lỗi khi load giỏ hàng: $e");
+      return [];
     }
   }
+
+  // @override
+  // Future<List<CartItem>> getCartItems(String cartId) async {
+  //   try {
+  //     print('Getting cart items for cartId: $cartId');
+
+  //     final response = await client.from('cart_items').select('''
+  //     *,
+  //     product_id(name, image_urls),
+  //     variant_id(additional_price,color, product_variant_images(image_url))
+  //   ''').eq('cart_id', int.parse(cartId));
+
+  //     final List<CartItem> items = response.map((item) {
+  //       final product = item['product_id'] as Map<String, dynamic>?;
+  //       final variant = item['variant_id'] as Map<String, dynamic>?;
+  //       final nameProduct = product?['name'] as String?;
+
+  //       String? imageUrl;
+  //       if (variant != null &&
+  //           variant['product_variant_images'] is List &&
+  //           (variant['product_variant_images'] as List).isNotEmpty) {
+  //         imageUrl = (variant['product_variant_images'] as List)
+  //             .first['image_url'] as String?;
+  //       } else if (product != null &&
+  //           product['image_urls'] is List &&
+  //           (product['image_urls'] as List).isNotEmpty) {
+  //         imageUrl = (product['image_urls'] as List).first as String?;
+  //       }
+
+  //       return CartItem(
+  //         id: item['id'] as int,
+  //         cartId: item['cart_id'] as int,
+  //         productId: item['product_id'] is Map<String, dynamic>
+  //             ? (item['product_id']['id'] ?? 0) as int
+  //             : item['product_id'] as int,
+  //         variantId: item['variant_id'] is Map<String, dynamic>
+  //             ? (item['variant_id']['id'] ?? 0) as int
+  //             : item['variant_id'] as int?,
+  //         quantity: item['quantity'] as int,
+  //         price: (item['price'] as num?)?.toDouble() ?? 0.0,
+  //         addedAt: DateTime.tryParse(item['added_at']?.toString() ?? '') ??
+  //             DateTime.now(),
+  //         productData: product,
+  //         variantData: variant,
+  //         nameProduct: nameProduct,
+  //         imageProduct: imageUrl,
+  //       );
+  //     }).toList();
+
+  //     print('Parsed ${items.length} cart items');
+  //     return items;
+  //   } catch (e) {
+  //     print('GetCartItems Error: $e');
+  //     throw Exception('Get cart items failed: $e');
+  //   }
+  // }
 
   Future<void> updateCartPrices(String userId) async {
     try {
