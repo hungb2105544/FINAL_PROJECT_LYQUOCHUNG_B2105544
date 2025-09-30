@@ -746,7 +746,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   OrderModel _createOrderModel(String orderNumber) {
     final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-
+    print("Giảm giá" + _calculateDiscount().toString());
     return OrderModel(
       id: 0,
       orderNumber: orderNumber,

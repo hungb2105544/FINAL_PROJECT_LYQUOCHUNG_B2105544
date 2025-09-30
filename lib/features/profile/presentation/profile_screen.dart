@@ -2,6 +2,7 @@ import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/address/presentation/address_screen.dart';
 import 'package:ecommerce_app/features/address/presentation/address_user_screen.dart';
 import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
+import 'package:ecommerce_app/features/order/presentation/order_page.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_event.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_state.dart';
@@ -69,7 +70,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.green,
                           icon: Icons.shopping_bag,
                           title: "Đơn hàng của tôi",
-                          onTap: () => print("Đi tới đơn hàng"),
+                          onTap: () {
+                            final userId =
+                                SupabaseConfig.client.auth.currentUser!.id;
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (context) => OrderPage(
+                                  userId: userId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         ProfileCard(
                           color: Colors.orange,

@@ -8,6 +8,8 @@ class OrderItemModel {
   final double discountAmount;
   final double lineTotal;
   final bool canReview;
+  final Map<String, dynamic>? product;
+  final Map<String, dynamic>? variant;
 
   OrderItemModel({
     required this.id,
@@ -19,6 +21,8 @@ class OrderItemModel {
     required this.discountAmount,
     required this.lineTotal,
     required this.canReview,
+    this.product,
+    this.variant,
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +36,8 @@ class OrderItemModel {
       discountAmount: (json['discount_amount'] ?? 0).toDouble(),
       lineTotal: (json['line_total'] ?? 0).toDouble(),
       canReview: json['can_review'] ?? false,
+      product: json['products'] as Map<String, dynamic>?,
+      variant: json['product_variants'] as Map<String, dynamic>?,
     );
   }
 
@@ -46,36 +52,8 @@ class OrderItemModel {
       'discount_amount': discountAmount,
       'line_total': lineTotal,
       'can_review': canReview,
+      'products': product,
+      'product_variants': variant,
     };
-  }
-
-  /// ✅ copyWith cho phép clone model và thay đổi một số field
-  OrderItemModel copyWith({
-    int? id,
-    int? orderId,
-    int? productId,
-    int? variantId,
-    int? quantity,
-    double? unitPrice,
-    double? discountAmount,
-    double? lineTotal,
-    bool? canReview,
-  }) {
-    return OrderItemModel(
-      id: id ?? this.id,
-      orderId: orderId ?? this.orderId,
-      productId: productId ?? this.productId,
-      variantId: variantId ?? this.variantId,
-      quantity: quantity ?? this.quantity,
-      unitPrice: unitPrice ?? this.unitPrice,
-      discountAmount: discountAmount ?? this.discountAmount,
-      lineTotal: lineTotal ?? this.lineTotal,
-      canReview: canReview ?? this.canReview,
-    );
-  }
-
-  @override
-  String toString() {
-    return 'OrderItemModel(id: $id, orderId: $orderId, productId: $productId, variantId: $variantId, quantity: $quantity, unitPrice: $unitPrice, discountAmount: $discountAmount, lineTotal: $lineTotal, canReview: $canReview)';
   }
 }

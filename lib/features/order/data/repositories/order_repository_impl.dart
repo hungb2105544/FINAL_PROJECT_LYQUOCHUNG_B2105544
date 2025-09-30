@@ -411,11 +411,30 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<List<OrderModel>> getOrderByUserID(String userId) async {
-    final res = await supabase.from('orders').select().eq('user_id', userId);
+    try {
+      final res = await supabase.from('orders').select('''
+      *,
+      order_items (
+        *,
+        products (*),
+        product_variants (*)
+      ),
+      order_status_history (*),
+      user_addresses (
+        *,
+        addresses (*)
+      ),
+      vouchers (*)
+    ''').eq('user_id', userId);
 
-    if (res == null) return [];
+      if (res == null) return [];
 
-    return (res as List).map((e) => OrderModel.fromJson(e)).toList();
+      return (res as List).map((e) => OrderModel.fromJson(e)).toList();
+    } catch (e, stacktrace) {
+      print('❌ Lỗi khi lấy đơn hàng cho user $userId: $e');
+      print(stacktrace);
+      return [];
+    }
   }
 
   Future<int> autoCheckPendingPayments() async {
