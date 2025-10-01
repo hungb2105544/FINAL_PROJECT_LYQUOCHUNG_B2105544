@@ -4,13 +4,17 @@ import 'package:ecommerce_app/features/order/data/model/order_model.dart';
 import 'package:ecommerce_app/features/order/data/model/order_status_history_model.dart';
 import 'package:ecommerce_app/features/order/data/model/transaction_model.dart';
 import 'package:ecommerce_app/features/order/domain/repositories/order_repository.dart';
+import 'package:ecommerce_app/features/rank/domain/repositories/rank_repository.dart';
 import 'package:ecommerce_app/service/transaction_service.dart';
 
 class OrderRepositoryImpl implements OrderRepository {
   final supabase = SupabaseConfig.client;
   final TransactionService transactionService;
-
-  OrderRepositoryImpl({required this.transactionService});
+  final UserRankRepository rankRepository;
+  OrderRepositoryImpl({
+    required this.transactionService,
+    required this.rankRepository,
+  });
 
   @override
   Future<OrderModel> makeOrder(
@@ -79,7 +83,7 @@ class OrderRepositoryImpl implements OrderRepository {
       if (order.voucherId != null) {
         await _markVoucherAsUsed(userid, order.voucherId!);
       }
-
+      rankRepository.addPointsFromOrder(userid, orderId, order.pointsEarned);
       await _removeOrderedItemsFromCart(userid, listOrderItem);
 
       return createdOrder;
@@ -192,7 +196,8 @@ class OrderRepositoryImpl implements OrderRepository {
         'status': 'cancelled',
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', order.id);
-
+      final userId = supabase.auth.currentUser!.id;
+      rankRepository.refundOrderPoints(userId, order.id);
       // Thêm lịch sử
       await supabase.from('order_status_history').insert({
         'order_id': order.id,
@@ -332,25 +337,30 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<bool> checkPaymentStatus(OrderModel order, String changedBy) async {
-    if (order.paymentStatus == 'paid') {
-      return true;
+    try {
+      if (order.paymentStatus == 'paid') {
+        return true;
+      }
+
+      // Lấy transactions từ service; đảm bảo service trả List<TransactionModel>
+      final transactions = await transactionService
+          .getAllTransactionWithAmounIn(order.total.toStringAsFixed(0));
+      print(transactions);
+      final matchedTx = transactions.firstWhere(
+        (tx) => _isTransactionMatched(tx, order),
+        orElse: () => TransactionModel.empty(),
+      );
+
+      if (matchedTx.isNotEmpty) {
+        await _updatePaymentStatus(order, matchedTx, changedBy);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      print("Lỗi ở hàng checkPaymentStatus");
+      return false;
     }
-
-    // Lấy transactions từ service; đảm bảo service trả List<TransactionModel>
-    final transactions = await transactionService
-        .getAllTransactionWithAmounIn(order.total.toStringAsFixed(0));
-
-    final matchedTx = transactions.firstWhere(
-      (tx) => _isTransactionMatched(tx, order),
-      orElse: () => TransactionModel.empty(),
-    );
-
-    if (matchedTx.isNotEmpty) {
-      await _updatePaymentStatus(order, matchedTx, changedBy);
-      return true;
-    }
-
-    return false;
   }
 
   bool _isTransactionMatched(TransactionModel tx, OrderModel order) {
@@ -374,24 +384,28 @@ class OrderRepositoryImpl implements OrderRepository {
     TransactionModel matchedTx,
     String changedBy,
   ) async {
-    await supabase.from('orders').update({
-      'payment_status': 'paid',
-      'payment_reference': matchedTx.referenceNumber,
-      'payment_method': 'bank_transfer',
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', order.id);
+    try {
+      await supabase.from('orders').update({
+        'payment_status': 'paid',
+        'payment_reference': matchedTx.referenceNumber,
+        'payment_method': 'bank_transfer',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', order.id);
 
-    final history = OrderStatusHistoryModel(
-      orderId: order.id,
-      oldStatus: order.paymentStatus,
-      newStatus: 'paid',
-      comment:
-          'Payment confirmed via Sepay transaction ${matchedTx.id}. Amount: ${matchedTx.amountIn} VND. Reference: ${matchedTx.referenceNumber}',
-      changedBy: changedBy,
-      changedAt: DateTime.now(),
-    );
+      final history = OrderStatusHistoryModel(
+        orderId: order.id,
+        oldStatus: order.paymentStatus,
+        newStatus: 'paid',
+        comment:
+            'Payment confirmed via Sepay transaction ${matchedTx.id}. Amount: ${matchedTx.amountIn} VND. Reference: ${matchedTx.referenceNumber}',
+        changedBy: changedBy,
+        changedAt: DateTime.now(),
+      );
 
-    await supabase.from('order_status_history').insert(history.toJson());
+      await supabase.from('order_status_history').insert(history.toJson());
+    } catch (e) {
+      print("Lỗi ở  hàm _updatePaymentStatus $e");
+    }
   }
 
   @override
@@ -455,5 +469,35 @@ class OrderRepositoryImpl implements OrderRepository {
     }
 
     return updatedCount;
+  }
+
+  @override
+  Future<OrderModel> getOrderById(String orderId) async {
+    try {
+      final res = await supabase.from('orders').select('''
+        *,
+        order_items (
+          *,
+          products (*),
+          product_variants (*)
+        ),
+        order_status_history (*),
+        user_addresses (
+          *,
+          addresses (*)
+        ),
+        vouchers (*)
+      ''').eq('id', orderId).maybeSingle();
+
+      if (res == null) {
+        throw Exception("Order with id $orderId not found");
+      }
+
+      return OrderModel.fromJson(res);
+    } catch (e, st) {
+      print('❌ Lỗi khi lấy đơn hàng id $orderId: $e');
+      print(st);
+      rethrow;
+    }
   }
 }

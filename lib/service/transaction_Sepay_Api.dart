@@ -13,6 +13,7 @@ class TransactionSepayApi {
             "Content-Type": "application/json",
             "Accept": "application/json",
           },
+          responseType: ResponseType.json,
         )) {
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {

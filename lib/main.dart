@@ -17,6 +17,8 @@ import 'package:ecommerce_app/features/product/data/repositories/product_reposit
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
+import 'package:ecommerce_app/features/rank/data/repositories/rank_repository_impl.dart';
+import 'package:ecommerce_app/features/rank/domain/repositories/rank_repository.dart';
 import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
 import 'package:ecommerce_app/features/voucher/bloc/voucher_bloc.dart';
 import 'package:ecommerce_app/features/voucher/data/repositories/voucher_repository_impl.dart';
@@ -28,6 +30,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase/src/supabase_client.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,8 +78,8 @@ class _MyAppState extends State<MyApp> {
         BlocProvider(
           create: (context) => OrderPaymentBloc(
             orderRepository: OrderRepositoryImpl(
-              transactionService: TransactionService(),
-            ),
+                transactionService: TransactionService(),
+                rankRepository: UserRankRepositoryImpl(SupabaseConfig.client)),
           ),
         ),
         Provider(create: (context) => CartRepositoryImpl()),

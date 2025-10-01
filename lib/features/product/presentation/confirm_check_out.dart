@@ -226,7 +226,7 @@ class _ConfirmCheckOutPageState extends State<ConfirmCheckOutPage>
     return BlocListener<OrderPaymentBloc, OrderPaymentState>(
       listener: (context, state) {
         if (state is PaymentConfirmed) {
-          // Thanh toán thành công
+          print(state.order.toString());
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(

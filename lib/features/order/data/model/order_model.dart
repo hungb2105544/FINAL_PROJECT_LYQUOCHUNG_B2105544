@@ -111,6 +111,59 @@ class OrderModel {
     };
   }
 
+  OrderModel copyWith({
+    int? id,
+    String? orderNumber,
+    String? userId,
+    int? userAddressId,
+    double? subtotal,
+    double? discountAmount,
+    double? shippingFee,
+    double? taxAmount,
+    double? total,
+    int? voucherId,
+    int? pointsEarned,
+    int? pointsUsed,
+    String? status,
+    String? paymentStatus,
+    String? paymentMethod,
+    String? paymentReference,
+    String? notes,
+    String? estimatedDeliveryDate,
+    String? deliveredAt,
+    String? createdAt,
+    String? updatedAt,
+    List<OrderItemModel>? listOrderItem,
+    List<OrderStatusHistoryModel>? statusHistories,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      orderNumber: orderNumber ?? this.orderNumber,
+      userId: userId ?? this.userId,
+      userAddressId: userAddressId ?? this.userAddressId,
+      subtotal: subtotal ?? this.subtotal,
+      discountAmount: discountAmount ?? this.discountAmount,
+      shippingFee: shippingFee ?? this.shippingFee,
+      taxAmount: taxAmount ?? this.taxAmount,
+      total: total ?? this.total,
+      voucherId: voucherId ?? this.voucherId,
+      pointsEarned: pointsEarned ?? this.pointsEarned,
+      pointsUsed: pointsUsed ?? this.pointsUsed,
+      status: status ?? this.status,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentReference: paymentReference ?? this.paymentReference,
+      notes: notes ?? this.notes,
+      estimatedDeliveryDate:
+          estimatedDeliveryDate ?? this.estimatedDeliveryDate,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      listOrderItem: listOrderItem ?? this.listOrderItem,
+      statusHistories: statusHistories ?? this.statusHistories,
+    );
+  }
+
   @override
   String toString() {
     return 'OrderModel('

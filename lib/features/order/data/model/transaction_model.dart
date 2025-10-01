@@ -1,6 +1,5 @@
 class TransactionModel {
   final String id;
-  final String transactionDate;
   final String accountNumber;
   final String subAccount;
   final String amountIn;
@@ -14,7 +13,6 @@ class TransactionModel {
 
   TransactionModel({
     required this.id,
-    required this.transactionDate,
     required this.accountNumber,
     required this.subAccount,
     required this.amountIn,
@@ -27,27 +25,27 @@ class TransactionModel {
     required this.bankAccountId,
   });
 
+  /// Parse từ JSON
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     return TransactionModel(
-      id: json['id'] ?? "",
-      transactionDate: json['transaction_date'] ?? "",
-      accountNumber: json['account_number'] ?? "",
-      subAccount: json['sub_account'] ?? "",
-      amountIn: json['amount_in'] ?? "0",
-      amountOut: json['amount_out'] ?? "0",
-      accumulated: json['accumulated'] ?? "0",
-      code: json['code'],
-      transactionContent: json['transaction_content'] ?? "",
-      referenceNumber: json['reference_number'] ?? "",
-      bankBrandName: json['bank_brand_name'] ?? "",
-      bankAccountId: json['bank_account_id'] ?? "",
+      id: json['id']?.toString() ?? "",
+      accountNumber: json['account_number']?.toString() ?? "",
+      subAccount: json['sub_account']?.toString() ?? "",
+      amountIn: json['amount_in']?.toString() ?? "0",
+      amountOut: json['amount_out']?.toString() ?? "0",
+      accumulated: json['accumulated']?.toString() ?? "0",
+      code: json['code']?.toString(),
+      transactionContent: json['transaction_content']?.toString() ?? "",
+      referenceNumber: json['reference_number']?.toString() ?? "",
+      bankBrandName: json['bank_brand_name']?.toString() ?? "",
+      bankAccountId: json['bank_account_id']?.toString() ?? "",
     );
   }
 
+  /// Convert sang JSON (DateTime sẽ thành chuỗi ISO8601)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'transaction_date': transactionDate,
       'account_number': accountNumber,
       'sub_account': subAccount,
       'amount_in': amountIn,
@@ -61,11 +59,10 @@ class TransactionModel {
     };
   }
 
-  /// ✅ Trả về TransactionModel rỗng
+  /// Model rỗng
   static TransactionModel empty() {
     return TransactionModel(
       id: "",
-      transactionDate: "",
       accountNumber: "",
       subAccount: "",
       amountIn: "0",
@@ -79,10 +76,9 @@ class TransactionModel {
     );
   }
 
-  /// ✅ Copy object và override field mong muốn
+  /// Copy object
   TransactionModel copyWith({
     String? id,
-    String? transactionDate,
     String? accountNumber,
     String? subAccount,
     String? amountIn,
@@ -96,7 +92,6 @@ class TransactionModel {
   }) {
     return TransactionModel(
       id: id ?? this.id,
-      transactionDate: transactionDate ?? this.transactionDate,
       accountNumber: accountNumber ?? this.accountNumber,
       subAccount: subAccount ?? this.subAccount,
       amountIn: amountIn ?? this.amountIn,
@@ -110,7 +105,15 @@ class TransactionModel {
     );
   }
 
-  /// ✅ Kiểm tra model có phải empty không
+  /// Kiểm tra empty
   bool get isEmpty => id.isEmpty;
   bool get isNotEmpty => id.isNotEmpty;
+
+  /// Override toString
+  @override
+  String toString() {
+    return 'TransactionModel(id: $id, date: , '
+        'account: $accountNumber, amountIn: $amountIn, amountOut: $amountOut, '
+        'reference: $referenceNumber, bank: $bankBrandName)';
+  }
 }

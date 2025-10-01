@@ -13,6 +13,8 @@ class SupabaseConfig {
       url: _supabaseUrl,
       anonKey: _supabaseAnonKey,
       authOptions: FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+        autoRefreshToken: true,
         localStorage: HiveLocalStorage(),
       ),
     );

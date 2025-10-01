@@ -11,4 +11,5 @@ abstract class OrderRepository {
   Future<bool> checkPaymentStatus(OrderModel order, String changedBy);
   Future<List<OrderStatusHistoryModel>> getOrderHistory(int orderId);
   Future<int> autoCheckPendingPayments();
+  Future<OrderModel> getOrderById(String orderId);
 }

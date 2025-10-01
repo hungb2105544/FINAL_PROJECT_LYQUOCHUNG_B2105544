@@ -23,7 +23,7 @@ class OrderStatusHistoryModel {
       'old_status': oldStatus,
       'new_status': newStatus,
       'comment': comment,
-      'changed_at': changedAt ?? DateTime.now().toIso8601String(),
+      'changed_at': (changedAt ?? DateTime.now()).toIso8601String(),
       'changed_by': changedBy,
     };
   }

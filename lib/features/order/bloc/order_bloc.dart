@@ -45,12 +45,14 @@ class OrderPaymentBloc extends Bloc<OrderPaymentEvent, OrderPaymentState> {
         event.order,
         event.userId,
       );
-
       if (isConfirmed) {
+        final updatedOrder =
+            await orderRepository.getOrderById(event.order.id.toString());
+
         emit(PaymentConfirmed(
-          order: event.order,
+          order: updatedOrder,
           message:
-              'Thanh toán đã được xác nhận! Đơn hàng #${event.order.orderNumber}',
+              'Thanh toán đã được xác nhận! Đơn hàng #${updatedOrder.orderNumber}',
         ));
       } else {
         emit(PaymentPending(
@@ -60,7 +62,9 @@ class OrderPaymentBloc extends Bloc<OrderPaymentEvent, OrderPaymentState> {
         ));
       }
     } catch (e) {
-      emit(OrderPaymentError('Kiểm tra thanh toán thất bại: ${e.toString()}'));
+      print(e);
+      emit(OrderPaymentError(
+          'Kiểm tra thanh toán thất bại tại đây: ${e.toString()}'));
     }
   }
 
