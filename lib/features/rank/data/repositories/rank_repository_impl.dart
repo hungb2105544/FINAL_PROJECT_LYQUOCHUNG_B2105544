@@ -305,7 +305,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
       print("User ID: $userId");
       print("Order ID: $orderId");
 
-      // Kiểm tra xem order có được cộng điểm chưa
       final pointsRecord = await _supabase
           .from('point_history')
           .select('id, points, created_at')
@@ -319,7 +318,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
 
       print("Points record: $pointsRecord");
 
-      // Nếu không có điểm để refund
       if (pointsRecord == null) {
         print("⚠️ No points awarded for this order. Skipping refund.");
 
@@ -333,7 +331,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
       final pointsToRefund = pointsRecord['points'] as int;
       print("✓ Found $pointsToRefund points to refund");
 
-      // Kiểm tra xem đã refund chưa
       final refundRecord = await _supabase
           .from('point_history')
           .select('id')
@@ -347,7 +344,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
         throw Exception('Points have already been refunded for this order');
       }
 
-      // Lấy thông tin user rank hiện tại
       final userRank = await _supabase
           .from('user_ranks')
           .select('id, current_points, lifetime_points')
@@ -359,7 +355,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
       final currentPoints = userRank['current_points'] as int;
       final lifetimePoints = userRank['lifetime_points'] as int;
 
-      // Tính điểm mới sau khi refund
       final newCurrentPoints =
           (currentPoints - pointsToRefund).clamp(0, double.infinity).toInt();
       final newLifetimePoints =
@@ -368,13 +363,11 @@ class UserRankRepositoryImpl implements UserRankRepository {
       print("Updating points: $currentPoints -> $newCurrentPoints");
       print("Updating lifetime: $lifetimePoints -> $newLifetimePoints");
 
-      // Lấy danh sách rank levels để xác định rank mới
       final rankLevels = await _supabase
           .from('rank_levels')
           .select('id, min_points, max_points')
           .order('min_points', ascending: true);
 
-      // Tìm rank level phù hợp với điểm mới
       int? newRankLevelId;
       for (final level in rankLevels) {
         final minPoints = level['min_points'] as int;
@@ -389,8 +382,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
 
       print("New rank level ID: $newRankLevelId");
 
-      // Thực hiện cập nhật trong một transaction
-      // 1. Thêm record vào point_history
       await _supabase.from('point_history').insert({
         'user_id': userId,
         'points': -pointsToRefund,
@@ -401,7 +392,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
 
       print("✓ Point history record created");
 
-      // 2. Cập nhật user_ranks
       await _supabase.from('user_ranks').update({
         'current_points': newCurrentPoints,
         'lifetime_points': newLifetimePoints,
@@ -411,7 +401,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
 
       print("✓ User rank updated");
 
-      // Lấy rank sau khi refund
       final updatedRank = await getUserRank(userId);
       if (updatedRank == null) {
         throw Exception('Failed to get updated user rank after refund');
@@ -437,7 +426,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
     }
   }
 
-  /// Kiểm tra xem user có đủ điểm không
   Future<bool> hasEnoughPoints(String userId, int requiredPoints) async {
     final userRank = await getUserRank(userId);
     return userRank != null && userRank.currentPoints >= requiredPoints;
@@ -473,7 +461,6 @@ class UserRankRepositoryImpl implements UserRankRepository {
     );
   }
 
-  /// Thêm điểm từ việc giới thiệu người dùng mới
   Future<UserRankModel> addPointsFromReferral(
     String userId,
     String referredUserId,

@@ -7,6 +7,7 @@ import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_event.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_state.dart';
 import 'package:ecommerce_app/features/profile/presentation/user_info_form_screen.dart';
+import 'package:ecommerce_app/features/rank/presentation/user_rank_page.dart';
 import 'package:ecommerce_app/features/voucher/presentation/user_voucher_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -104,6 +105,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             context,
                             CupertinoPageRoute(
                               builder: (context) => UserVoucherPage(),
+                            ),
+                          ),
+                        ),
+                        ProfileCard(
+                          color: Colors.pinkAccent,
+                          icon: Icons.info,
+                          title: "Thứ hạng của người dùng",
+                          onTap: () => Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (context) => UserRankPage(),
                             ),
                           ),
                         ),

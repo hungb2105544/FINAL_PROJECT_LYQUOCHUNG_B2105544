@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
 import 'package:ecommerce_app/common_widgets/product_card.dart';
@@ -17,17 +18,21 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
+  Timer? _scrollDebounceTimer;
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // ✅ CHỈ GỌI 1 EVENT - LoadProductsWithCache đã xử lý cache + server
       context.read<ProductBloc>().add(
-            LoadProductsWithCache(page: 1, limit: 20, showCacheFirst: true),
-          );
-      context.read<ProductBloc>().add(
-            GetProductIsActive(),
+            LoadProductsWithCache(
+              page: 1,
+              limit: 20,
+              showCacheFirst: true,
+            ),
           );
     });
 
@@ -37,18 +42,36 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _scrollDebounceTimer?.cancel();
     super.dispose();
   }
 
   void _onScroll() {
-    if (_isBottom) {
-      final currentState = context.read<ProductBloc>().state;
-      if (!currentState.hasReachedMax && !currentState.isLoading) {
-        context.read<ProductBloc>().add(
-              LoadMoreProducts(page: currentState.currentPage + 1),
-            );
-      }
+    // ✅ Debounce scroll event
+    if (_scrollDebounceTimer?.isActive ?? false) {
+      _scrollDebounceTimer!.cancel();
     }
+
+    _scrollDebounceTimer = Timer(const Duration(milliseconds: 200), () {
+      if (_isBottom && !_isLoadingMore) {
+        final currentState = context.read<ProductBloc>().state;
+
+        if (!currentState.hasReachedMax && !currentState.isLoading) {
+          setState(() => _isLoadingMore = true);
+
+          context.read<ProductBloc>().add(
+                LoadMoreProducts(page: currentState.currentPage + 1),
+              );
+
+          // Reset flag sau khi load xong
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              setState(() => _isLoadingMore = false);
+            }
+          });
+        }
+      }
+    });
   }
 
   bool get _isBottom {
@@ -72,20 +95,12 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async {
-            context
-                .read<ProductBloc>()
-                .add(RefreshProducts(page: 1, limit: 20));
-            await Future.delayed(const Duration(milliseconds: 500));
-            final state = context.read<ProductBloc>().state;
-            while (state.isRefreshing) {
-              await Future.delayed(const Duration(milliseconds: 100));
-            }
-          },
+          onRefresh: _handleRefresh,
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: SingleChildScrollView(
               controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
                   _buildCarouselAd(screenHeight, screenWidth, adImages),
@@ -102,38 +117,41 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 12),
 
                   BlocConsumer<ProductBloc, ProductState>(
-                    listener: (context, state) {
-                      if (state.hasError) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(state.errorMessage!),
-                            backgroundColor: Colors.red[600],
-                            action: SnackBarAction(
-                              label: 'Thử lại',
-                              textColor: Colors.white,
-                              onPressed: () {
-                                context.read<ProductBloc>().add(
-                                      LoadProductsWithCache(page: 1, limit: 20),
-                                    );
-                              },
-                            ),
-                          ),
-                        );
-                      }
-                    },
+                    listener: _handleBlocListener,
                     builder: (context, state) {
                       return _buildProductsGrid(state);
                     },
                   ),
 
-                  // FIX: Add loading indicator for pagination
+                  // ✅ Loading indicator cho pagination
                   BlocBuilder<ProductBloc, ProductState>(
                     builder: (context, state) {
-                      if (state.isLoading && state.products.isNotEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16.0),
+                      if (state.isLoading &&
+                          state.products.isNotEmpty &&
+                          !state.hasReachedMax) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16.0),
                           child: Center(
                             child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+
+                  // ✅ End of list indicator
+                  BlocBuilder<ProductBloc, ProductState>(
+                    builder: (context, state) {
+                      if (state.hasReachedMax && state.products.isNotEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Đã hiển thị tất cả sản phẩm',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
                           ),
                         );
                       }
@@ -147,6 +165,43 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleRefresh() async {
+    final bloc = context.read<ProductBloc>();
+    bloc.add(RefreshProducts(page: 1, limit: 20));
+    await bloc.stream
+        .firstWhere(
+          (state) => !state.isRefreshing,
+          orElse: () => bloc.state,
+        )
+        .timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => bloc.state,
+        );
+  }
+
+  void _handleBlocListener(BuildContext context, ProductState state) {
+    if (state.hasError && state.errorMessage != null) {
+      if (state.products.isEmpty || !state.errorMessage!.contains('đã lưu')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(state.errorMessage!),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Thử lại',
+              textColor: Colors.white,
+              onPressed: () {
+                context.read<ProductBloc>().add(
+                      LoadProductsWithCache(page: 1, limit: 20),
+                    );
+              },
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildCarouselAd(
@@ -168,6 +223,12 @@ class _HomePageState extends State<HomePage> {
             imagePath,
             width: screenWidth * 0.9,
             fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.image_not_supported),
+              );
+            },
           ),
         );
       }).toList(),
@@ -204,15 +265,17 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: _buildSectionTitle(context, "Danh sách sản phẩm"),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (state.products.isNotEmpty)
+            if (state.products.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
                   TextButton.icon(
                     onPressed: state.isRefreshing
                         ? null
                         : () {
-                            context.read<ProductBloc>().add(RefreshProducts());
+                            context
+                                .read<ProductBloc>()
+                                .add(RefreshProducts(page: 1, limit: 20));
                           },
                     icon: state.isRefreshing
                         ? const SizedBox(
@@ -226,8 +289,27 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
-              ],
-            ),
+                  // ✅ Hiển thị data source info
+                  if (state.isFromCache && !state.isRefreshing)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cached, size: 12, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Dữ liệu đã lưu',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
           ],
         );
       },
@@ -235,8 +317,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildProductsGrid(ProductState state) {
-    // FIX: Better loading state handling
-    if (state.isLoading && state.products.isEmpty) {
+    // ✅ Initial loading state
+    if (state.isLoading && state.products.isEmpty && !state.isRefreshing) {
       return SizedBox(
         height: 300,
         child: Center(
@@ -262,8 +344,8 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // FIX: Better empty state
-    if (state.products.isEmpty && !state.isLoading) {
+    // ✅ Empty state with retry
+    if (state.products.isEmpty && !state.isLoading && !state.isRefreshing) {
       return SizedBox(
         height: 300,
         child: Center(
@@ -283,9 +365,20 @@ class _HomePageState extends State<HomePage> {
                     ),
               ),
               const SizedBox(height: 8),
+              Text(
+                state.errorMessage ?? "Vui lòng thử lại sau",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  context.read<ProductBloc>().add(LoadProductsWithCache());
+                  context.read<ProductBloc>().add(
+                        LoadProductsWithCache(page: 1, limit: 20),
+                      );
                 },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Thử lại'),
@@ -296,14 +389,14 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // FIX: Products grid with proper handling
+    // ✅ Products grid
     return Column(
       children: [
-        // Show refresh indicator when loading fresh data over cache
+        // Refresh indicator banner
         if (state.isRefreshing && state.products.isNotEmpty)
           Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.blue[50],
               borderRadius: BorderRadius.circular(8),
@@ -315,7 +408,12 @@ class _HomePageState extends State<HomePage> {
                 SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.blue[700]!,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -323,6 +421,7 @@ class _HomePageState extends State<HomePage> {
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.blue[700],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -351,7 +450,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Tiêu đề section tái sử dụng
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Align(
       alignment: Alignment.centerLeft,

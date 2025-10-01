@@ -54,43 +54,47 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
       }
 
       final client = SupabaseConfig.client;
-      final response = await client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
+      try {
+        final response = await client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+        final session = response.session;
+        final user = response.user;
+        print("Session + $session");
+        if (session != null && user != null) {
+          await SessionManager.saveSession(session);
 
-      final session = response.session;
-      final user = response.user;
+          try {
+            final profile = await client
+                .from('user_profiles')
+                .select()
+                .eq('id', user.id)
+                .maybeSingle()
+                .timeout(const Duration(seconds: 3));
 
-      if (session != null && user != null) {
-        await SessionManager.saveSession(session);
-
-        try {
-          final profile = await client
-              .from('user_profiles')
-              .select()
-              .eq('id', user.id)
-              .maybeSingle()
-              .timeout(const Duration(seconds: 3));
-
-          if (profile == null) {
-            await client.from('user_profiles').insert({
-              'id': user.id,
-              'email': user.email,
-              'full_name': googleUser.displayName ?? user.email?.split('@')[0],
-              'avatar_url': googleUser.photoUrl,
-              'registration_source': 'google_oauth',
-              'created_at': DateTime.now().toIso8601String(),
-            });
+            if (profile == null) {
+              await client.from('user_profiles').insert({
+                'id': user.id,
+                'email': user.email,
+                'full_name':
+                    googleUser.displayName ?? user.email?.split('@')[0],
+                'avatar_url': googleUser.photoUrl,
+                'registration_source': 'google_oauth',
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            }
+          } catch (e) {
+            print('⚠️ Lỗi khi tạo/kiểm tra profile: $e');
           }
-        } catch (e) {
-          print('⚠️ Lỗi khi tạo/kiểm tra profile: $e');
-        }
 
-        emit(AuthenState.authenticated(user.id));
-      } else {
-        emit(const AuthenState.error('Đăng nhập Google thất bại'));
+          emit(AuthenState.authenticated(user.id));
+        } else {
+          emit(const AuthenState.error('Đăng nhập Google thất bại'));
+        }
+      } catch (e) {
+        print(e);
       }
     } on AuthException catch (e) {
       emit(AuthenState.error(_getLocalizedAuthError(e)));

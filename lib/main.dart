@@ -17,6 +17,7 @@ import 'package:ecommerce_app/features/product/data/repositories/product_reposit
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
+import 'package:ecommerce_app/features/rank/bloc/rank_bloc.dart';
 import 'package:ecommerce_app/features/rank/data/repositories/rank_repository_impl.dart';
 import 'package:ecommerce_app/features/rank/domain/repositories/rank_repository.dart';
 import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
@@ -88,6 +89,11 @@ class _MyAppState extends State<MyApp> {
             create: (context) => CartBloc(
                   cartRepository: context.read<CartRepositoryImpl>(),
                 )),
+        BlocProvider(
+          create: (context) => UserRankBloc(
+            UserRankRepositoryImpl(SupabaseConfig.client),
+          ),
+        ),
         BlocProvider(
           create: (context) => VoucherBloc(
             context.read<VoucherRepositoryImpl>(),
