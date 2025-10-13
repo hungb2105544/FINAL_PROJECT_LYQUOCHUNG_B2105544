@@ -104,3 +104,12 @@ class OrderPaymentError extends OrderPaymentState {
   @override
   List<Object?> get props => [message];
 }
+
+class OrderLoaded extends OrderPaymentState {
+  final OrderModel order;
+
+  const OrderLoaded(this.order);
+
+  @override
+  List<Object?> get props => [order];
+}

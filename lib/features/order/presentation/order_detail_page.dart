@@ -1,12 +1,12 @@
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/bloc/order_event.dart';
+import 'package:ecommerce_app/features/order/bloc/order_state.dart';
 import 'package:ecommerce_app/features/order/data/model/order_model.dart';
 import 'package:ecommerce_app/features/order/data/model/order_item_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
-/// 👉 Extension để lấy dữ liệu hiển thị trực tiếp từ Map product / variant
 extension OrderItemDisplay on OrderItemModel {
   String get displayName {
     if (product != null && product!['name'] != null) {
@@ -34,42 +34,242 @@ extension OrderItemDisplay on OrderItemModel {
   }
 }
 
-class OrderDetailPage extends StatelessWidget {
-  final OrderModel order;
+class OrderDetailPage extends StatefulWidget {
+  final OrderModel? order;
+  final String? orderId; // ⭐ THÊM MỚI: Nhận orderId từ notification
 
-  const OrderDetailPage({super.key, required this.order});
+  static const route =
+      "/order-detail"; // ⭐ SỬA: Thêm "/" để match với navigation
+
+  const OrderDetailPage({
+    super.key,
+    this.order,
+    this.orderId, // ⭐ THÊM MỚI
+  });
+
+  @override
+  State<OrderDetailPage> createState() => _OrderDetailPageState();
+}
+
+class _OrderDetailPageState extends State<OrderDetailPage> {
+  OrderModel? _currentOrder;
+  bool _isInitialized = false;
+  String? _orderId; // ⭐ THÊM MỚI: Lưu orderId
+
+  @override
+  void initState() {
+    super.initState();
+    print('📦 [OrderDetailPage] initState');
+    print('   order: ${widget.order?.id}');
+    print('   orderId: ${widget.orderId}');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!_isInitialized) {
+      _initializeOrder();
+      _isInitialized = true;
+    }
+  }
+
+  void _initializeOrder() {
+    print('🔄 [OrderDetailPage] _initializeOrder');
+
+    // ⭐ CẬP NHẬT: Xử lý các trường hợp khác nhau
+
+    // 1. Ưu tiên: Order object truyền trực tiếp
+    if (widget.order != null) {
+      print('✅ Using order from widget');
+      setState(() {
+        _currentOrder = widget.order;
+        _orderId = widget.order!.id.toString();
+      });
+      return;
+    }
+
+    // 2. OrderId từ constructor (từ notification)
+    if (widget.orderId != null && widget.orderId!.isNotEmpty) {
+      print('✅ Using orderId from widget: ${widget.orderId}');
+      setState(() {
+        _orderId = widget.orderId;
+      });
+      context.read<OrderPaymentBloc>().add(
+            GetOrderById(orderId: widget.orderId!),
+          );
+      return;
+    }
+
+    // 3. Lấy từ route arguments
+    final args = ModalRoute.of(context)?.settings.arguments;
+    print('📋 Route arguments type: ${args.runtimeType}');
+    print('📋 Route arguments value: $args');
+
+    if (args is Map<String, dynamic>) {
+      final orderId = args['order_id'];
+      print('📋 order_id from map: $orderId (${orderId.runtimeType})');
+
+      if (orderId != null) {
+        final orderIdStr = orderId.toString();
+        print('✅ Loading order by ID: $orderIdStr');
+        setState(() {
+          _orderId = orderIdStr;
+        });
+        context.read<OrderPaymentBloc>().add(
+              GetOrderById(orderId: orderIdStr),
+            );
+        return;
+      }
+    } else if (args is String) {
+      print('✅ Loading order by string ID: $args');
+      setState(() {
+        _orderId = args;
+      });
+      context.read<OrderPaymentBloc>().add(
+            GetOrderById(orderId: args),
+          );
+      return;
+    } else if (args is OrderModel) {
+      print('✅ Using OrderModel from arguments');
+      setState(() {
+        _currentOrder = args;
+        _orderId = args.id.toString();
+      });
+      return;
+    }
+
+    print('⚠️ No order data found');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Đơn hàng #${order.orderNumber}'),
+        title: Text(_currentOrder != null
+            ? 'Đơn hàng #${_currentOrder!.orderNumber}'
+            : _orderId != null
+                ? 'Đơn hàng #$_orderId'
+                : 'Chi tiết đơn hàng'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildStatusSection(),
-            const SizedBox(height: 8),
-            _buildProductsSection(),
-            const SizedBox(height: 8),
-            _buildPriceSection(),
-            const SizedBox(height: 8),
-            _buildPaymentSection(),
-            const SizedBox(height: 8),
-            if (order.notes != null) _buildNotesSection(),
-            const SizedBox(height: 80),
-          ],
-        ),
+      body: BlocConsumer<OrderPaymentBloc, OrderPaymentState>(
+        listener: (context, state) {
+          if (state is OrderLoaded) {
+            print('✅ [OrderDetailPage] Order loaded: ${state.order.id}');
+            setState(() {
+              _currentOrder = state.order;
+              _orderId = state.order.id.toString();
+            });
+          } else if (state is OrderPaymentError) {
+            print('❌ [OrderDetailPage] Error: ${state.message}');
+          }
+        },
+        builder: (context, state) {
+          // Hiển thị loading khi đang tải dữ liệu
+          if (_currentOrder == null && state is OrderPaymentLoading) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Đang tải thông tin đơn hàng...'),
+                ],
+              ),
+            );
+          }
+
+          // Hiển thị lỗi nếu có
+          if (state is OrderPaymentError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      state.message,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (_orderId != null) {
+                        print('🔄 Retrying to load order: $_orderId');
+                        context.read<OrderPaymentBloc>().add(
+                              GetOrderById(orderId: _orderId!),
+                            );
+                      }
+                    },
+                    child: const Text('Thử lại'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Quay lại'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Kiểm tra nếu không có order
+          if (_currentOrder == null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Không tìm thấy thông tin đơn hàng',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Quay lại'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Hiển thị nội dung đơn hàng
+          final order = _currentOrder!;
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildStatusSection(order),
+                const SizedBox(height: 8),
+                _buildProductsSection(order),
+                const SizedBox(height: 8),
+                _buildPriceSection(order),
+                const SizedBox(height: 8),
+                _buildPaymentSection(order),
+                const SizedBox(height: 8),
+                if (order.notes != null) _buildNotesSection(order),
+                const SizedBox(height: 80),
+              ],
+            ),
+          );
+        },
       ),
-      bottomNavigationBar: _buildBottomBar(context),
+      bottomNavigationBar: _currentOrder != null
+          ? _buildBottomBar(context, _currentOrder!)
+          : null,
     );
   }
 
   // ===================== WIDGETS =====================
 
-  Widget _buildStatusSection() {
+  Widget _buildStatusSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -121,7 +321,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProductsSection() {
+  Widget _buildProductsSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -219,7 +419,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPriceSection() {
+  Widget _buildPriceSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -299,7 +499,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentSection() {
+  Widget _buildPaymentSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -330,7 +530,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildNotesSection() {
+  Widget _buildNotesSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -375,7 +575,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomBar(BuildContext context) {
+  Widget _buildBottomBar(BuildContext context, OrderModel order) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -395,7 +595,7 @@ class OrderDetailPage extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
-                    _showCancelDialog(context);
+                    _showCancelDialog(context, order);
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -413,7 +613,7 @@ class OrderDetailPage extends StatelessWidget {
     );
   }
 
-  void _showCancelDialog(BuildContext context) {
+  void _showCancelDialog(BuildContext context, OrderModel order) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -448,12 +648,14 @@ class OrderDetailPage extends StatelessWidget {
     switch (status) {
       case 'pending':
         return Icons.schedule;
+      case 'confirmed':
+        return Icons.check_circle_outline;
       case 'processing':
         return Icons.inventory_2_outlined;
       case 'shipping':
         return Icons.local_shipping_outlined;
       case 'delivered':
-        return Icons.check_circle_outline;
+        return Icons.verified;
       case 'cancelled':
         return Icons.cancel_outlined;
       default:
@@ -465,6 +667,8 @@ class OrderDetailPage extends StatelessWidget {
     switch (status) {
       case 'pending':
         return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
       case 'processing':
         return Colors.blue;
       case 'shipping':
@@ -482,6 +686,8 @@ class OrderDetailPage extends StatelessWidget {
     switch (status) {
       case 'pending':
         return 'Chờ xác nhận';
+      case 'confirmed':
+        return 'Đã xác nhận';
       case 'processing':
         return 'Đang xử lý';
       case 'shipping':

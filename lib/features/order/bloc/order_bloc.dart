@@ -14,6 +14,26 @@ class OrderPaymentBloc extends Bloc<OrderPaymentEvent, OrderPaymentState> {
     on<GetOrdersByUserEvent>(_onGetOrdersByUser);
     on<GetOrderHistoryEvent>(_onGetOrderHistory);
     on<AutoCheckPendingPaymentsEvent>(_onAutoCheckPendingPayments);
+    on<GetOrderById>(_onGetOrderByOrderId);
+  }
+
+  Future<void> _onGetOrderByOrderId(
+    GetOrderById event,
+    Emitter<OrderPaymentState> emit,
+  ) async {
+    emit(OrderPaymentLoading());
+    try {
+      final order = await orderRepository.getOrderById(event.orderId);
+
+      if (order != null) {
+        emit(OrderLoaded(order));
+      } else {
+        emit(const OrderPaymentError("Không tìm thấy đơn hàng"));
+      }
+    } catch (e) {
+      print("Lỗi gặp phải khi lấy đơn hàng $e");
+      emit(OrderPaymentError("Lấy đơn hàng thất bại: ${e.toString()}"));
+    }
   }
 
   /// Xử lý tạo đơn hàng

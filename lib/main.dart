@@ -10,6 +10,8 @@ import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
 import 'package:ecommerce_app/features/cart/data/repositories/cart_repositories.impl.dart';
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/data/repositories/order_repository_impl.dart';
+import 'package:ecommerce_app/features/order/presentation/order_detail_page.dart';
+import 'package:ecommerce_app/features/order/presentation/order_page.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
@@ -19,24 +21,28 @@ import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
 import 'package:ecommerce_app/features/rank/bloc/rank_bloc.dart';
 import 'package:ecommerce_app/features/rank/data/repositories/rank_repository_impl.dart';
-import 'package:ecommerce_app/features/rank/domain/repositories/rank_repository.dart';
 import 'package:ecommerce_app/features/splash/presentation/splash_screen.dart';
 import 'package:ecommerce_app/features/voucher/bloc/voucher_bloc.dart';
 import 'package:ecommerce_app/features/voucher/data/repositories/voucher_repository_impl.dart';
 import 'package:ecommerce_app/service/auth_deep_link_handler.dart';
 import 'package:ecommerce_app/service/deep_link_service.dart';
+import 'package:ecommerce_app/service/firebase_api.dart';
 import 'package:ecommerce_app/service/transaction_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase/src/supabase_client.dart';
+
+final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
+  await Firebase.initializeApp();
+  await FirebaseApi.instance.initNotifications();
+  await setupNotificationChannel();
   try {
     await dotenv.load(fileName: ".env");
     await SupabaseConfig.initialize();
@@ -132,6 +138,30 @@ class _MyAppState extends State<MyApp> {
         debugShowCheckedModeBanner: false,
         title: 'Flutter Demo',
         theme: appTheme,
+        navigatorKey: navigatorKey,
+        onGenerateRoute: (settings) {
+          print('🔍 [Router] Route requested: ${settings.name}');
+          print('🔍 [Router] Arguments: ${settings.arguments}');
+
+          if (settings.name == OrderDetailPage.route) {
+            final args = settings.arguments;
+            String? orderId;
+
+            if (args is Map<String, dynamic>) {
+              orderId = args['order_id']?.toString();
+            } else if (args is String) {
+              orderId = args;
+            }
+
+            print('🔍 [Router] OrderDetailPage - orderId: $orderId');
+
+            return MaterialPageRoute(
+              builder: (context) => OrderDetailPage(orderId: orderId),
+              settings: settings,
+            );
+          }
+          return null;
+        },
         home: Builder(
           builder: (context) {
             return widget.hasSession

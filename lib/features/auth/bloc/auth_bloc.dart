@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_event.dart';
 import 'package:ecommerce_app/features/auth/bloc/auth_state.dart';
 import 'package:ecommerce_app/features/auth/service/session_manager.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -20,103 +22,148 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     on<ResetPasswordEvent>(_onResetPassword);
     on<UpdatePasswordEvent>(_onUpdatePassword);
     on<CheckEmailVerificationEvent>(_onCheckEmailVerification);
-    on<LoginWithGoogle>(_LogininwithGoogle);
+    on<LoginWithGoogle>(_loginWithGoogle);
   }
-  Future<void> _LogininwithGoogle(
-      LoginWithGoogle event, Emitter<AuthenState> emit) async {
+
+  // ==================== DEVICE & FCM TOKEN MANAGEMENT ====================
+
+  /// Lấy Device ID duy nhất cho mỗi thiết bị
+  Future<String> _getDeviceId() async {
     try {
-      emit(const AuthenState.loading());
-      print("Bắt đầu đăng nhập");
-      final googleSignIn = GoogleSignIn(
-        // clientId: dotenv.env['CLIENT_ID'],
-        serverClientId:
-            "152762888438-1hpuulu1khn4iam4lt1m1uo5mtv87pbj.apps.googleusercontent.com",
-      );
-
-      final googleUser = await await googleSignIn.signInSilently() ??
-          await googleSignIn.signIn();
-      if (googleUser == null) {
-        print("google use bị Null");
-        emit(const AuthenState.unauthenticated());
-        return;
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        return androidInfo.id;
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        return iosInfo.identifierForVendor ??
+            "unknown_ios_${DateTime.now().millisecondsSinceEpoch}";
+      } else {
+        return "unknown_device_${DateTime.now().millisecondsSinceEpoch}";
       }
-
-      final googleAuth = await googleUser.authentication;
-
-      final accessToken = googleAuth.accessToken;
-      print("Lấy được Access Token thành công ${accessToken}");
-      final idToken = googleAuth.idToken;
-      print("Lấy được Id Token thành công ${idToken}");
-
-      if (accessToken == null || idToken == null) {
-        emit(const AuthenState.error('Không thể lấy token từ Google'));
-        return;
-      }
-
-      final client = SupabaseConfig.client;
-      try {
-        final response = await client.auth.signInWithIdToken(
-          provider: OAuthProvider.google,
-          idToken: idToken,
-          accessToken: accessToken,
-        );
-        final session = response.session;
-        final user = response.user;
-        print("Session + $session");
-        if (session != null && user != null) {
-          await SessionManager.saveSession(session);
-
-          try {
-            final profile = await client
-                .from('user_profiles')
-                .select()
-                .eq('id', user.id)
-                .maybeSingle()
-                .timeout(const Duration(seconds: 3));
-
-            if (profile == null) {
-              await client.from('user_profiles').insert({
-                'id': user.id,
-                'email': user.email,
-                'full_name':
-                    googleUser.displayName ?? user.email?.split('@')[0],
-                'avatar_url': googleUser.photoUrl,
-                'registration_source': 'google_oauth',
-                'created_at': DateTime.now().toIso8601String(),
-              });
-            }
-          } catch (e) {
-            print('⚠️ Lỗi khi tạo/kiểm tra profile: $e');
-          }
-
-          emit(AuthenState.authenticated(user.id));
-        } else {
-          emit(const AuthenState.error('Đăng nhập Google thất bại'));
-        }
-      } catch (e) {
-        print(e);
-      }
-    } on AuthException catch (e) {
-      emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Google login error: $e');
-      emit(const AuthenState.error('Có lỗi xảy ra khi đăng nhập với Google'));
+      print("❌ Lỗi khi lấy Device ID: $e");
+      return "error_device_${DateTime.now().millisecondsSinceEpoch}";
     }
   }
 
+  /// Lấy tên thiết bị để hiển thị
+  Future<String> _getDeviceName() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        return "${androidInfo.brand} ${androidInfo.model}";
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        return "${iosInfo.name} (${iosInfo.model})";
+      }
+      return "Unknown Device";
+    } catch (e) {
+      return "Unknown Device";
+    }
+  }
+
+  /// Lấy platform (Android/iOS)
+  String _getPlatform() {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    return 'unknown';
+  }
+
+  /// Lưu FCM token vào database khi đăng nhập thành công
+  Future<void> _saveFcmToken(String userId) async {
+    try {
+      final client = SupabaseConfig.client;
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      final deviceId = await _getDeviceId();
+      final deviceName = await _getDeviceName();
+      final platform = _getPlatform();
+
+      if (fcmToken == null || fcmToken.isEmpty) {
+        print("⚠️ FCM token null hoặc rỗng, bỏ qua lưu token");
+        return;
+      }
+
+      // Upsert token vào database
+      await client.from('user_devices').upsert(
+        {
+          'user_id': userId,
+          'fcm_token': fcmToken,
+          'device_id': deviceId,
+          'device_name': deviceName,
+          'platform': platform,
+          'is_active': true,
+          'last_active_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'user_id,device_id', // Tránh trùng lặp
+      );
+
+      print("✅ Đã lưu FCM token thành công");
+      print("   📱 Device: $deviceName ($deviceId)");
+      print("   🔑 Token: ${fcmToken.substring(0, 20)}...");
+    } catch (e) {
+      print("❌ Lỗi khi lưu FCM token: $e");
+      // Không throw error để không ảnh hưởng đến flow đăng nhập
+    }
+  }
+
+  /// Vô hiệu hóa FCM token khi đăng xuất
+  Future<void> _deactivateFcmToken(String userId) async {
+    try {
+      final client = SupabaseConfig.client;
+      final deviceId = await _getDeviceId();
+
+      await client
+          .from('user_devices')
+          .update({'is_active': false})
+          .eq('user_id', userId)
+          .eq('device_id', deviceId);
+
+      print("🚪 Đã vô hiệu hóa FCM token khi logout");
+    } catch (e) {
+      print("❌ Lỗi khi deactivate FCM token: $e");
+      // Không throw error
+    }
+  }
+
+  /// Xóa tất cả token cũ của user trên thiết bị này (cleanup)
+  Future<void> _cleanupOldTokens(String userId) async {
+    try {
+      final client = SupabaseConfig.client;
+      final deviceId = await _getDeviceId();
+
+      // Lấy danh sách token cũ (inactive hoặc quá 30 ngày không active)
+      final oldDate =
+          DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+
+      await client
+          .from('user_devices')
+          .delete()
+          .eq('user_id', userId)
+          .eq('device_id', deviceId)
+          .or('is_active.eq.false,last_active_at.lt.$oldDate');
+
+      print("🧹 Đã dọn dẹp token cũ");
+    } catch (e) {
+      print("⚠️ Lỗi khi cleanup token: $e");
+    }
+  }
+
+  // ==================== AUTHENTICATION HANDLERS ====================
+
+  /// ĐĂNG KÝ TÀI KHOẢN MỚI
   Future<void> _onRegister(
       RegisterEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
-      // Pre-validation
       if (!_validateRegistrationData(event.email, event.password)) {
         emit(const AuthenState.error('Email hoặc mật khẩu không hợp lệ.'));
         return;
       }
 
       final client = SupabaseConfig.client;
-      print("Tiến hành đăng nhập");
       final response = await client.auth.signUp(
         email: event.email.trim().toLowerCase(),
         password: event.password,
@@ -128,32 +175,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
           'full_name': event.email.split('@')[0],
         },
       );
-      print(response);
-      final user = response.user;
 
+      final user = response.user;
       if (user == null) {
         emit(const AuthenState.error(
             'Không thể tạo tài khoản. Vui lòng thử lại.'));
         return;
       }
 
-      // THÊM: Đảm bảo profile được tạo trong public.profiles
+      // Đảm bảo profile được tạo
       try {
-        // Chờ một chút để trigger kích hoạt
         await Future.delayed(const Duration(seconds: 1));
-
-        // Kiểm tra xem profile đã được tạo chưa
-        final profile = await client
+        await client
             .from('user_profiles')
             .select()
             .eq('id', user.id)
             .single()
             .timeout(const Duration(seconds: 5));
-
-        print('Profile created successfully: $profile');
+        print('✅ Profile created successfully');
       } catch (e) {
-        print('Warning: Profile might not be created: $e');
-        // Không emit error vì user đã được tạo, chỉ thiếu profile
+        print('⚠️ Profile might not be created: $e');
       }
 
       if (user.emailConfirmedAt == null) {
@@ -162,20 +203,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
         final session = response.session;
         if (session != null) {
           await SessionManager.saveSession(session);
+
+          // Lưu FCM token sau khi đăng ký thành công
+          await _saveFcmToken(user.id);
+
           emit(AuthenState.authenticated(user.id));
         } else {
           emit(const AuthenState.emailVerificationRequired());
         }
       }
     } on AuthException catch (e) {
-      String errorMessage = _getLocalizedAuthError(e);
-      emit(AuthenState.error(errorMessage));
+      emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Registration error: $e');
-
-      // XỬ LÝ LỖI CỤ THỂ
+      print('❌ Registration error: $e');
       if (e.toString().contains('unexpected_failure') ||
-          e.toString().contains('Database error saving new user')) {
+          e.toString().contains('Database error')) {
         emit(const AuthenState.error(
             'Lỗi hệ thống. Vui lòng thử lại sau ít phút.'));
       } else {
@@ -185,12 +227,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     }
   }
 
-  // ĐĂNG NHẬP
+  /// ĐĂNG NHẬP BẰNG EMAIL & PASSWORD
   Future<void> _onLogin(LoginEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
-      // Pre-validation
       if (!_validateLoginData(event.email, event.password)) {
         emit(const AuthenState.error('Email hoặc mật khẩu không hợp lệ.'));
         return;
@@ -210,38 +251,133 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
           emit(const AuthenState.emailVerificationRequired());
         } else {
           await SessionManager.saveSession(session);
+
+          // Lưu FCM token ngay sau khi đăng nhập thành công
+          await _saveFcmToken(user.id);
+
+          // Dọn dẹp token cũ (chạy background, không chờ)
+          _cleanupOldTokens(user.id);
+
           emit(AuthenState.authenticated(user.id));
         }
       } else {
         emit(const AuthenState.error('Thông tin đăng nhập không chính xác.'));
       }
     } on AuthException catch (e) {
-      String errorMessage = _getLocalizedAuthError(e);
-      emit(AuthenState.error(errorMessage));
+      emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Login error: $e');
+      print('❌ Login error: $e');
       emit(const AuthenState.error(
           'Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.'));
     }
   }
 
-  // ĐĂNG XUẤT
+  /// ĐĂNG NHẬP BẰNG GOOGLE
+  Future<void> _loginWithGoogle(
+      LoginWithGoogle event, Emitter<AuthenState> emit) async {
+    try {
+      emit(const AuthenState.loading());
+
+      final googleSignIn = GoogleSignIn(
+        serverClientId:
+            "152762888438-1hpuulu1khn4iam4lt1m1uo5mtv87pbj.apps.googleusercontent.com",
+      );
+
+      final googleUser =
+          await googleSignIn.signInSilently() ?? await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        print("⚠️ Google user null - người dùng hủy đăng nhập");
+        emit(const AuthenState.unauthenticated());
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (accessToken == null || idToken == null) {
+        emit(const AuthenState.error('Không thể lấy token từ Google'));
+        return;
+      }
+
+      final client = SupabaseConfig.client;
+      final response = await client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      final session = response.session;
+      final user = response.user;
+
+      if (session != null && user != null) {
+        await SessionManager.saveSession(session);
+
+        // Tạo profile nếu chưa có
+        try {
+          final profile = await client
+              .from('user_profiles')
+              .select()
+              .eq('id', user.id)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 3));
+
+          if (profile == null) {
+            await client.from('user_profiles').insert({
+              'id': user.id,
+              'email': user.email,
+              'full_name': googleUser.displayName ?? user.email?.split('@')[0],
+              'avatar_url': googleUser.photoUrl,
+              'registration_source': 'google_oauth',
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        } catch (e) {
+          print('⚠️ Lỗi khi tạo/kiểm tra profile: $e');
+        }
+
+        // Lưu FCM token sau khi đăng nhập Google thành công
+        await _saveFcmToken(user.id);
+
+        // Cleanup token cũ
+        _cleanupOldTokens(user.id);
+
+        emit(AuthenState.authenticated(user.id));
+      } else {
+        emit(const AuthenState.error('Đăng nhập Google thất bại'));
+      }
+    } on AuthException catch (e) {
+      emit(AuthenState.error(_getLocalizedAuthError(e)));
+    } catch (e) {
+      print('❌ Google login error: $e');
+      emit(const AuthenState.error('Có lỗi xảy ra khi đăng nhập với Google'));
+    }
+  }
+
+  /// ĐĂNG XUẤT
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
+
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+
+      // Vô hiệu hóa FCM token trước khi logout
+      if (userId != null) {
+        await _deactivateFcmToken(userId);
+      }
 
       await SupabaseConfig.client.auth.signOut();
       await SessionManager.clearSession();
 
       emit(const AuthenState.unauthenticated());
     } catch (e) {
-      print('Logout error: $e');
-      // Vẫn emit unauthenticated vì logout cần success
+      print('❌ Logout error: $e');
       emit(const AuthenState.unauthenticated());
     }
   }
 
-// KHÔI PHỤC SESSION - FIXED VERSION
+  /// KHÔI PHỤC SESSION
   Future<void> _onRestore(
       RestoreSessionEvent event, Emitter<AuthenState> emit) async {
     try {
@@ -249,106 +385,95 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
 
       final client = SupabaseConfig.client;
 
-      // BƯỚC 1: Thử refresh session trước
+      // Thử refresh session
       try {
         final currentSession = client.auth.currentSession;
         if (currentSession != null) {
-          print("Found existing session, attempting refresh...");
           final refreshResponse = await client.auth.refreshSession();
           if (refreshResponse.session != null) {
             await SessionManager.saveSession(refreshResponse.session!);
-            print("Session refreshed successfully");
           }
         }
       } catch (e) {
-        print("Session refresh failed: $e");
-        // Continue với session cũ nếu refresh fail
+        print("⚠️ Session refresh failed: $e");
       }
 
-      // BƯỚC 2: Kiểm tra session
       final session = await SessionManager.restoreSession();
 
       if (session != null) {
-        print("Session found - Auth Bloc"); // ← Sửa thông báo debug
         final user = client.auth.currentUser;
 
         if (user != null && !session.isExpired) {
-          print("User emailConfirmedAt: ${user.emailConfirmedAt}");
-
           if (user.emailConfirmedAt != null) {
-            print("Email confirmed, authenticating user");
+            // Cập nhật FCM token khi restore session
+            await _saveFcmToken(user.id);
+
             emit(AuthenState.authenticated(user.id));
           } else {
-            print("Email not confirmed, requiring verification");
             emit(const AuthenState.emailVerificationRequired());
           }
         } else {
-          // Session expired hoặc invalid
-          print("Session expired or user null");
           await SessionManager.clearSession();
           await client.auth.signOut();
           emit(const AuthenState.unauthenticated());
         }
       } else {
-        print("No session found");
         emit(const AuthenState.unauthenticated());
       }
     } catch (e) {
-      print('Session restore error: $e');
+      print('❌ Session restore error: $e');
       await SessionManager.clearSession();
       await SupabaseConfig.client.auth.signOut();
       emit(const AuthenState.unauthenticated());
     }
   }
 
+  /// KIỂM TRA XÁC THỰC EMAIL
   Future<void> _onCheckEmailVerification(
       CheckEmailVerificationEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
       final client = SupabaseConfig.client;
-
-      // Force refresh session để lấy user data mới nhất
       final refreshResponse = await client.auth.refreshSession();
 
       if (refreshResponse.session != null && refreshResponse.user != null) {
         await SessionManager.saveSession(refreshResponse.session!);
-
         final user = refreshResponse.user!;
-        print("Refreshed user emailConfirmedAt: ${user.emailConfirmedAt}");
 
         if (user.emailConfirmedAt != null) {
-          print("Email verification confirmed!");
+          // Lưu FCM token sau khi verify email thành công
+          await _saveFcmToken(user.id);
+
           emit(AuthenState.authenticated(user.id));
         } else {
-          print("Email still not confirmed");
           emit(const AuthenState.emailVerificationRequired());
         }
       } else {
         emit(const AuthenState.error("Không thể kiểm tra trạng thái xác thực"));
       }
     } catch (e) {
-      print('Check email verification error: $e');
-      emit(const AuthenState.error("Lỗi kiểm tra xác thự"));
+      print('❌ Check email verification error: $e');
+      emit(const AuthenState.error("Lỗi kiểm tra xác thực"));
     }
   }
 
-  // XỬ LÝ CALLBACK TỪ DEEP LINK
+  /// XỬ LÝ CALLBACK TỪ DEEP LINK
   Future<void> _onHandleAuthCallback(
       HandleAuthCallbackEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
       final client = SupabaseConfig.client;
-
-      // Set session với access token nhận được từ deep link
       final response = await client.auth.setSession(event.accessToken);
 
       if (response.session != null && response.user != null) {
         await SessionManager.saveSession(response.session!);
 
-        // Kiểm tra email đã được verify chưa
         if (response.user!.emailConfirmedAt != null) {
+          // Lưu FCM token sau khi callback thành công
+          await _saveFcmToken(response.user!.id);
+
           emit(AuthenState.authenticated(response.user!.id));
         } else {
           emit(const AuthenState.emailVerificationRequired());
@@ -358,11 +483,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
             'Không thể xác thực email. Vui lòng thử lại.'));
       }
     } catch (e) {
-      print('Auth callback error: $e');
+      print('❌ Auth callback error: $e');
       emit(AuthenState.error('Lỗi xác thực email: ${e.toString()}'));
     }
   }
 
+  /// GỬI LẠI EMAIL XÁC THỰC
   Future<void> _onResendVerification(
       ResendVerificationEvent event, Emitter<AuthenState> emit) async {
     try {
@@ -376,19 +502,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     } on AuthException catch (e) {
       emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Resend verification error: $e');
+      print('❌ Resend verification error: $e');
       emit(const AuthenState.error('Không thể gửi lại email xác thực.'));
     }
   }
 
-  // RESET MẬT KHẨU
+  /// RESET MẬT KHẨU
   Future<void> _onResetPassword(
       ResetPasswordEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
       final client = SupabaseConfig.client;
-
       await client.auth.resetPasswordForEmail(
         event.email,
         redirectTo: 'ecommerceapp://auth/reset-password',
@@ -398,19 +523,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     } on AuthException catch (e) {
       emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Reset password error: $e');
+      print('❌ Reset password error: $e');
       emit(const AuthenState.error('Không thể gửi email reset mật khẩu.'));
     }
   }
 
-  // CẬP NHẬT MẬT KHẨU
+  /// CẬP NHẬT MẬT KHẨU
   Future<void> _onUpdatePassword(
       UpdatePasswordEvent event, Emitter<AuthenState> emit) async {
     try {
       emit(const AuthenState.loading());
 
       final client = SupabaseConfig.client;
-
       final response = await client.auth.updateUser(
         UserAttributes(password: event.newPassword),
       );
@@ -423,90 +547,60 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
     } on AuthException catch (e) {
       emit(AuthenState.error(_getLocalizedAuthError(e)));
     } catch (e) {
-      print('Update password error: $e');
+      print('❌ Update password error: $e');
       emit(const AuthenState.error('Có lỗi xảy ra khi cập nhật mật khẩu.'));
     }
   }
 
-  // VALIDATION HELPERS
+  // ==================== VALIDATION & ERROR HANDLING ====================
+
   bool _validateRegistrationData(String email, String password) {
-    // Validate email format
     final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    if (!emailRegex.hasMatch(email)) {
-      return false;
-    }
-
-    // Validate password strength
-    if (password.length < 6) {
-      return false;
-    }
-
+    if (!emailRegex.hasMatch(email)) return false;
+    if (password.length < 6) return false;
     return true;
   }
 
   bool _validateLoginData(String email, String password) {
-    if (email.trim().isEmpty || password.isEmpty) {
-      return false;
-    }
-
+    if (email.trim().isEmpty || password.isEmpty) return false;
     final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
     return emailRegex.hasMatch(email);
   }
 
-  // ERROR LOCALIZATION
   String _getLocalizedAuthError(AuthException e) {
     final message = e.message.toLowerCase();
 
     if (message.contains('email not confirmed') ||
         message.contains('email_not_confirmed')) {
-      return 'Email chưa được xác thực. Vui lòng kiểm tra hộp thư và nhấp vào liên kết xác thực.';
+      return 'Email chưa được xác thực. Vui lòng kiểm tra hộp thư.';
     } else if (message.contains('invalid login credentials') ||
         message.contains('invalid_credentials')) {
       return 'Email hoặc mật khẩu không chính xác.';
     } else if (message.contains('already registered') ||
         message.contains('already exists')) {
-      return 'Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.';
+      return 'Email này đã được đăng ký.';
     } else if (message.contains('invalid email')) {
       return 'Email không hợp lệ.';
     } else if (message.contains('password')) {
-      if (message.contains('too short')) {
-        return 'Mật khẩu quá ngắn. Vui lòng sử dụng ít nhất 6 ký tự.';
-      }
+      if (message.contains('too short'))
+        return 'Mật khẩu quá ngắn (tối thiểu 6 ký tự).';
       return 'Mật khẩu không hợp lệ.';
     } else if (message.contains('too many requests') ||
         message.contains('rate limit')) {
-      return 'Quá nhiều yêu cầu. Vui lòng đợi một lúc rồi thử lại.';
+      return 'Quá nhiều yêu cầu. Vui lòng đợi một lúc.';
     } else if (message.contains('network') || message.contains('connection')) {
-      return 'Lỗi kết nối mạng. Vui lòng kiểm tra internet và thử lại.';
+      return 'Lỗi kết nối mạng. Vui lòng kiểm tra internet.';
     } else if (message.contains('user not found')) {
       return 'Không tìm thấy tài khoản với email này.';
     } else if (message.contains('token')) {
       return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
     } else if (message.contains('google') || message.contains('oauth')) {
-      if (message.contains('popup') || message.contains('cancelled')) {
+      if (message.contains('cancelled') || message.contains('user_cancelled')) {
         return 'Đăng nhập Google đã bị hủy';
-      } else if (message.contains('invalid_credentials') ||
-          message.contains('invalid_token')) {
+      } else if (message.contains('invalid_token')) {
         return 'Token Google không hợp lệ. Vui lòng thử lại.';
       } else if (message.contains('configuration')) {
-        return 'Cấu hình Google OAuth chưa đúng. Liên hệ quản trị viên.';
-      }
-      return 'Lỗi đăng nhập Google. Vui lòng thử lại.';
-    } else if (message.contains('google') || message.contains('oauth')) {
-      if (message.contains('popup') ||
-          message.contains('cancelled') ||
-          message.contains('user_cancelled')) {
-        return 'Đăng nhập Google đã bị hủy';
-      } else if (message.contains('invalid_credentials') ||
-          message.contains('invalid_token')) {
-        return 'Token Google không hợp lệ. Vui lòng thử lại.';
-      } else if (message.contains('configuration')) {
-        return 'Cấu hình Google OAuth chưa đúng. Liên hệ quản trị viên.';
-      } else if (message.contains('network') ||
-          message.contains('connection')) {
-        return 'Lỗi kết nối mạng trong quá trình đăng nhập Google';
-      } else if (message.contains('timeout')) {
-        return 'Đăng nhập Google quá thời gian chờ';
+        return 'Cấu hình Google OAuth chưa đúng.';
       }
       return 'Lỗi đăng nhập Google. Vui lòng thử lại.';
     }
@@ -516,20 +610,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
         : 'Có lỗi xảy ra. Vui lòng thử lại.';
   }
 
-  // UTILITY METHODS
-  bool get isAuthenticated {
-    return state.status == AuthStatus.authenticated;
-  }
+  // ==================== UTILITY METHODS ====================
 
-  bool get isLoading {
-    return state.status == AuthStatus.loading;
-  }
+  bool get isAuthenticated => state.status == AuthStatus.authenticated;
+  bool get isLoading => state.status == AuthStatus.loading;
+  String? get currentUserId => state.userId;
 
-  String? get currentUserId {
-    return state.userId;
-  }
-
-  // Kiểm tra và refresh token nếu cần
+  /// Refresh token nếu cần
   Future<void> refreshTokenIfNeeded() async {
     try {
       final session = SupabaseConfig.client.auth.currentSession;
@@ -540,15 +627,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthenState> {
         }
       }
     } catch (e) {
-      print('Token refresh error: $e');
-      add(LogoutEvent()); // Logout nếu không thể refresh
+      print('❌ Token refresh error: $e');
+      add(LogoutEvent());
     }
   }
 
-  // Clean up khi dispose
+  /// Cập nhật FCM token thủ công (ví dụ: khi token refresh)
+  Future<void> updateFcmToken() async {
+    try {
+      final userId = SupabaseConfig.client.auth.currentUser?.id;
+      if (userId != null) {
+        await _saveFcmToken(userId);
+      }
+    } catch (e) {
+      print('❌ Update FCM token error: $e');
+    }
+  }
+
   @override
   Future<void> close() async {
-    // Có thể thêm cleanup logic ở đây nếu cần
     return super.close();
   }
 }

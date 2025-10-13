@@ -9,6 +9,15 @@ abstract class OrderPaymentEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class GetOrderById extends OrderPaymentEvent {
+  final String orderId;
+
+  const GetOrderById({required this.orderId});
+
+  @override
+  List<Object?> get props => [orderId];
+}
+
 /// Tạo đơn hàng mới
 class CreateOrderEvent extends OrderPaymentEvent {
   final OrderModel order;
