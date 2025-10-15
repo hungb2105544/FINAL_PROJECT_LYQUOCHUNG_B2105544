@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_state.dart';
+import 'package:intl/intl.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
 
 class Debouncer {
@@ -805,6 +806,9 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   }
 
   Widget _buildProductCard(ProductModel product) {
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+
     return Stack(
       children: [
         Card(
@@ -877,7 +881,11 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                         Row(
                           children: [
                             Text(
-                              '${(product.priceHistoryModel != null && product.priceHistoryModel!.isNotEmpty) ? product.priceHistoryModel!.last.price.toStringAsFixed(0) : 'N/A'} VND',
+                              currencyFormatter.format(
+                                  (product.priceHistoryModel != null &&
+                                          product.priceHistoryModel!.isNotEmpty)
+                                      ? product.priceHistoryModel!.last.price
+                                      : 0),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -1192,6 +1200,9 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   }
 
   Widget _buildPriceFilter() {
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1270,7 +1281,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_tempPriceRange.start.toStringAsFixed(0)} VND',
+                      currencyFormatter.format(_tempPriceRange.start),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -1301,7 +1312,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_tempPriceRange.end.toStringAsFixed(0)} VND',
+                      currencyFormatter.format(_tempPriceRange.end),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

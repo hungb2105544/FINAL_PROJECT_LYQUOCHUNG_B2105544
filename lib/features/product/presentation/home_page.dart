@@ -20,13 +20,14 @@ class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   Timer? _scrollDebounceTimer;
   bool _isLoadingMore = false;
+  bool _hasShownRealtimeSnack = false;
 
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // ✅ CHỈ GỌI 1 EVENT - LoadProductsWithCache đã xử lý cache + server
+      // ✅ Load dữ liệu ban đầu (cache + server)
       context.read<ProductBloc>().add(
             LoadProductsWithCache(
               page: 1,
@@ -46,8 +47,10 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // =====================================================
+  // 🔁 Xử lý scroll để load thêm sản phẩm
+  // =====================================================
   void _onScroll() {
-    // ✅ Debounce scroll event
     if (_scrollDebounceTimer?.isActive ?? false) {
       _scrollDebounceTimer!.cancel();
     }
@@ -63,11 +66,8 @@ class _HomePageState extends State<HomePage> {
                 LoadMoreProducts(page: currentState.currentPage + 1),
               );
 
-          // Reset flag sau khi load xong
           Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              setState(() => _isLoadingMore = false);
-            }
+            if (mounted) setState(() => _isLoadingMore = false);
           });
         }
       }
@@ -81,6 +81,9 @@ class _HomePageState extends State<HomePage> {
     return currentScroll >= (maxScroll * 0.9);
   }
 
+  // =====================================================
+  // 🧱 UI chính
+  // =====================================================
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -105,17 +108,15 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _buildCarouselAd(screenHeight, screenWidth, adImages),
                   const SizedBox(height: 20),
-
                   _buildSectionTitle(context, "Danh mục sản phẩm"),
-
                   _buildCategoriesSection(),
-
                   const SizedBox(height: 20),
-
                   _buildProductsSectionTitle(context),
-
                   const SizedBox(height: 12),
 
+                  // =====================================================
+                  // 🧩 Hiển thị danh sách sản phẩm
+                  // =====================================================
                   BlocConsumer<ProductBloc, ProductState>(
                     listener: _handleBlocListener,
                     builder: (context, state) {
@@ -131,9 +132,7 @@ class _HomePageState extends State<HomePage> {
                           !state.hasReachedMax) {
                         return const Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          child: Center(child: CircularProgressIndicator()),
                         );
                       }
                       return const SizedBox.shrink();
@@ -167,6 +166,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // =====================================================
+  // 🔄 Kéo để refresh thủ công
+  // =====================================================
   Future<void> _handleRefresh() async {
     final bloc = context.read<ProductBloc>();
     bloc.add(RefreshProducts(page: 1, limit: 20));
@@ -175,13 +177,14 @@ class _HomePageState extends State<HomePage> {
           (state) => !state.isRefreshing,
           orElse: () => bloc.state,
         )
-        .timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => bloc.state,
-        );
+        .timeout(const Duration(seconds: 10), onTimeout: () => bloc.state);
   }
 
+  // =====================================================
+  // 📢 Lắng nghe thay đổi state để hiển thị SnackBar hoặc lỗi
+  // =====================================================
   void _handleBlocListener(BuildContext context, ProductState state) {
+    // 🧩 Nếu có lỗi
     if (state.hasError && state.errorMessage != null) {
       if (state.products.isEmpty || !state.errorMessage!.contains('đã lưu')) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -202,8 +205,19 @@ class _HomePageState extends State<HomePage> {
         );
       }
     }
+
+    // 🧩 Hiển thị snackbar khi nhận realtime update
+    if (!state.isRefreshing &&
+        state.dataSource == DataSource.server &&
+        !_hasShownRealtimeSnack) {
+      _hasShownRealtimeSnack = true;
+      print("Dữ liệu loading thành công");
+    }
   }
 
+  // =====================================================
+  // 🎞️ Slider quảng cáo
+  // =====================================================
   Widget _buildCarouselAd(
       double screenHeight, double screenWidth, List<String> adImages) {
     return CarouselSlider(
@@ -213,7 +227,6 @@ class _HomePageState extends State<HomePage> {
         enlargeCenterPage: true,
         viewportFraction: 0.9,
         aspectRatio: 16 / 9,
-        initialPage: 0,
         autoPlayInterval: const Duration(seconds: 4),
       ),
       items: adImages.map((imagePath) {
@@ -235,6 +248,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // =====================================================
+  // 📦 Danh mục sản phẩm
+  // =====================================================
   Widget _buildCategoriesSection() {
     return SizedBox(
       height: 100,
@@ -256,15 +272,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // =====================================================
+  // 🏷️ Tiêu đề danh sách sản phẩm
+  // =====================================================
   Widget _buildProductsSectionTitle(BuildContext context) {
     return BlocBuilder<ProductBloc, ProductState>(
       builder: (context, state) {
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: _buildSectionTitle(context, "Danh sách sản phẩm"),
-            ),
+            Expanded(child: _buildSectionTitle(context, "Danh sách sản phẩm")),
             if (state.products.isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -289,7 +306,6 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
-                  // ✅ Hiển thị data source info
                   if (state.isFromCache && !state.isRefreshing)
                     Padding(
                       padding: const EdgeInsets.only(right: 8.0),
@@ -316,8 +332,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // =====================================================
+  // 🧱 Hiển thị danh sách sản phẩm
+  // =====================================================
   Widget _buildProductsGrid(ProductState state) {
-    // ✅ Initial loading state
     if (state.isLoading && state.products.isEmpty && !state.isRefreshing) {
       return SizedBox(
         height: 300,
@@ -329,14 +347,14 @@ class _HomePageState extends State<HomePage> {
                 "assets/lottie/loading_viemode.json",
                 height: 100,
                 width: 100,
-                fit: BoxFit.cover,
               ),
               const SizedBox(height: 16),
               Text(
                 'Đang tải sản phẩm...',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.grey[600]),
               ),
             ],
           ),
@@ -344,7 +362,6 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // ✅ Empty state with retry
     if (state.products.isEmpty && !state.isLoading && !state.isRefreshing) {
       return SizedBox(
         height: 300,
@@ -352,25 +369,20 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.inventory_2_outlined,
-                size: 64,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.inventory_2_outlined,
+                  size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
                 "Không có sản phẩm nào",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: Colors.grey[600]),
               ),
               const SizedBox(height: 8),
               Text(
                 state.errorMessage ?? "Vui lòng thử lại sau",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -389,10 +401,9 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // ✅ Products grid
+    // ✅ Grid sản phẩm
     return Column(
       children: [
-        // Refresh indicator banner
         if (state.isRefreshing && state.products.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -405,15 +416,11 @@ class _HomePageState extends State<HomePage> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.blue[700]!,
-                    ),
-                  ),
+                      strokeWidth: 2, color: Colors.blue),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -427,7 +434,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -450,6 +456,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // =====================================================
+  // 🏷️ Tiêu đề section
+  // =====================================================
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Align(
       alignment: Alignment.centerLeft,
