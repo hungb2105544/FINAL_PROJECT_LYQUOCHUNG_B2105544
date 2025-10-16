@@ -39,7 +39,11 @@ class CartRepositoryImpl implements CartRepository {
   Future<double> _getCurrentProductPrice(
       String productId, String? variantId) async {
     try {
-      final int pid = int.parse(productId);
+      final int? pid = int.tryParse(productId);
+      if (pid == null) {
+        print('Error: Invalid product ID format: $productId');
+        return 0.0;
+      }
       final priceHistoryResponse = await client
           .from('product_price_history')
           .select('price')
@@ -59,7 +63,7 @@ class CartRepositoryImpl implements CartRepository {
         final variantResponse = await client
             .from('product_variants')
             .select('additional_price')
-            .eq('id', int.parse(variantId))
+            .eq('id', variantId)
             .maybeSingle();
 
         if (variantResponse != null) {
@@ -67,30 +71,23 @@ class CartRepositoryImpl implements CartRepository {
         }
       }
 
-      // 3. Kiểm tra giảm giá còn hiệu lực
-      final discountResponse = await client
-          .from('product_discounts')
-          .select('discount_percentage, discount_amount, start_date, end_date')
-          .eq('product_id', pid)
-          .eq('is_active', true)
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+      // 3. Lấy khuyến mãi đang hoạt động bằng RPC
+      final discountJson = await client.rpc(
+        'get_active_discount_for_product',
+        params: {'p_product_id': pid},
+      );
 
-      if (discountResponse != null) {
-        final now = DateTime.now();
-        final start = DateTime.parse(discountResponse['start_date']);
-        final end = DateTime.parse(discountResponse['end_date']);
+      if (discountJson != null) {
+        final discountPercentage =
+            (discountJson['discount_percentage'] as num?)?.toDouble();
+        final discountAmount =
+            (discountJson['discount_amount'] as num?)?.toDouble();
 
-        if (now.isAfter(start) && now.isBefore(end)) {
-          if (discountResponse['discount_percentage'] != null) {
-            final percent = discountResponse['discount_percentage'] as int;
-            basePrice = basePrice * (1 - percent / 100);
-          } else if (discountResponse['discount_amount'] != null) {
-            basePrice -=
-                (discountResponse['discount_amount'] as num).toDouble();
-            if (basePrice < 0) basePrice = 0;
-          }
+        if (discountPercentage != null && discountPercentage > 0) {
+          basePrice = basePrice * (1 - discountPercentage / 100);
+        } else if (discountAmount != null && discountAmount > 0) {
+          basePrice -= discountAmount;
+          if (basePrice < 0) basePrice = 0;
         }
       }
 
@@ -107,17 +104,21 @@ class CartRepositoryImpl implements CartRepository {
     try {
       final currentPrice = await _getCurrentProductPrice(productId, variantId);
       final cart = await getCart(userId);
-      final existingItems = await client
-          .from('cart_items')
-          .select()
-          .eq('cart_id', cart.id)
-          .eq('product_id', int.parse(productId));
+      final existingItems =
+          await client.from('cart_items').select().eq('cart_id', cart.id);
+
+      final int? pid = int.tryParse(productId);
+      if (pid == null) {
+        throw Exception('Invalid product ID format');
+      }
+
+      final int? vid = variantId != null ? int.tryParse(variantId) : null;
 
       final matchingItem = existingItems.where((item) {
-        if (variantId == null) {
-          return item['variant_id'] == null;
+        if (vid == null) {
+          return item['product_id'] == pid && item['variant_id'] == null;
         } else {
-          return item['variant_id'] == int.parse(variantId);
+          return item['product_id'] == pid && item['variant_id'] == vid;
         }
       }).toList();
 
@@ -133,13 +134,13 @@ class CartRepositoryImpl implements CartRepository {
       } else {
         final insertData = {
           'cart_id': cart.id,
-          'product_id': int.parse(productId),
+          'product_id': pid,
           'quantity': quantity,
           'price': currentPrice,
         };
 
-        if (variantId != null) {
-          insertData['variant_id'] = int.parse(variantId);
+        if (vid != null) {
+          insertData['variant_id'] = vid;
         }
 
         print('Insert data: $insertData');
@@ -174,7 +175,11 @@ class CartRepositoryImpl implements CartRepository {
   @override
   Future<void> removeFromCart(String cartItemId, String userId) async {
     try {
-      await client.from('cart_items').delete().eq('id', int.parse(cartItemId));
+      final int? cid = int.tryParse(cartItemId);
+      if (cid == null) {
+        throw Exception('Invalid cart item ID format');
+      }
+      await client.from('cart_items').delete().eq('id', cid);
     } catch (e) {
       print('RemoveFromCart Error: $e');
       throw Exception('Remove from cart failed: $e');
@@ -190,11 +195,15 @@ class CartRepositoryImpl implements CartRepository {
         throw Exception('Item removed due to zero quantity');
       }
 
+      final int? cid = int.tryParse(cartItemId);
+      if (cid == null) {
+        throw Exception('Invalid cart item ID format');
+      }
       // CHỈ UPDATE QUANTITY, KHÔNG UPDATE PRICE
       final response = await client
           .from('cart_items')
           .update({'quantity': quantity})
-          .eq('id', int.parse(cartItemId))
+          .eq('id', cid)
           .select();
 
       print('Update response: $response');
@@ -233,7 +242,7 @@ class CartRepositoryImpl implements CartRepository {
   @override
   Future<List<CartItem>> getCartItems(String cartId) async {
     try {
-      final response = await client.from('cart_items').select('''
+      final query = client.from('cart_items').select('''
           id,
           cart_id,
           quantity,
@@ -246,7 +255,12 @@ class CartRepositoryImpl implements CartRepository {
             color,
             product_variant_images(image_url)
           )
-        ''').eq('cart_id', int.parse(cartId));
+        ''');
+
+      final int? cid = int.tryParse(cartId);
+      if (cid == null) return [];
+
+      final response = await query.eq('cart_id', cid);
 
       return (response as List<dynamic>).map((item) {
         final product = item['products'] as Map<String, dynamic>?;

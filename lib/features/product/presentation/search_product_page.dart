@@ -925,7 +925,9 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
             ),
           ),
         ),
-        if (product.discounts != null && product.discounts!.isNotEmpty)
+        if (product.discounts != null &&
+            product.discounts!.isNotEmpty &&
+            (product.discounts!.first.discountPercentage ?? 0) > 0)
           Positioned(
             top: 1,
             left: 5,

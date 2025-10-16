@@ -20,10 +20,10 @@ class BrandModel {
 
   factory BrandModel.fromJson(Map<String, dynamic> json) {
     return BrandModel(
-      id: json['id'],
-      brandName: json['brand_name'],
-      imageUrl: json['image_url'],
-      description: json['description'],
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      brandName: json['brand_name'] as String? ?? '',
+      imageUrl: json['image_url'] as String?,
+      description: json['description'] as String?,
     );
   }
   Map<String, dynamic> toJson() => {

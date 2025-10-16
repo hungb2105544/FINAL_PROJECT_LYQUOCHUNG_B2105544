@@ -396,18 +396,38 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   Map<String, double> _calculatePrices() {
     final originalPrice = widget.product.priceHistoryModel?.isNotEmpty == true
-        ? (widget.product.priceHistoryModel!.first.price ?? 0).toDouble()
+        ? (widget.product.priceHistoryModel!.first.price ?? 0.0).toDouble()
         : 0.0;
-    final discount = widget.product.discounts?.isNotEmpty == true
-        ? (widget.product.discounts!.first.discountPercentage ?? 0).toDouble()
-        : 0.0;
-    final discountedPrice = originalPrice * (1 - (discount / 100));
-    final finalPrice = discount > 0 ? discountedPrice : originalPrice;
+
+    double finalPrice = originalPrice;
+    double discountValue = 0.0; // To display discount percentage
+
+    final activeDiscount = widget.product.discounts?.isNotEmpty == true
+        ? widget.product.discounts!.first
+        : null;
+
+    if (activeDiscount != null) {
+      if (activeDiscount.discountPercentage != null &&
+          activeDiscount.discountPercentage! > 0) {
+        discountValue = activeDiscount.discountPercentage!.toDouble();
+        finalPrice = originalPrice * (1 - (discountValue / 100));
+      } else if (activeDiscount.discountAmount != null &&
+          activeDiscount.discountAmount! > 0) {
+        finalPrice = originalPrice - activeDiscount.discountAmount!.toDouble();
+        if (finalPrice < 0) finalPrice = 0;
+        // Calculate percentage for display purposes if needed
+        if (originalPrice > 0) {
+          discountValue =
+              (activeDiscount.discountAmount! / originalPrice) * 100;
+        }
+      }
+    }
+
     final totalPrice = finalPrice * quantity;
 
     return {
       'originalPrice': originalPrice,
-      'discount': discount,
+      'discount': discountValue, // This is now a percentage for display
       'finalPrice': finalPrice,
       'totalPrice': totalPrice,
     };
@@ -1260,7 +1280,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     debugPrint(
         "Mua ngay: size=$selectedSize, màu=${selectedColor?['color']}, số lượng=$quantity");
 
-    // Navigate to checkout with this product
+    // TODO: Navigate to checkout with this product
     // Navigator.pushNamed(context, CheckoutPage.routeName, arguments: {
     //   'products': [widget.product],
     //   'quantity': quantity,

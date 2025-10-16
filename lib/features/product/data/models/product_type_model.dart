@@ -22,11 +22,11 @@ class ProductTypeModel {
 
   factory ProductTypeModel.fromJson(Map<String, dynamic> json) {
     return ProductTypeModel(
-        id: json['id'],
-        typeName: json['type_name'],
-        description: json['description'],
-        image_url: json['image_url'],
-        parent_id: json['parent_id']);
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        typeName: json['type_name'] as String? ?? '',
+        description: json['description'] as String?,
+        image_url: json['image_url'] as String?,
+        parent_id: (json['parent_id'] as num?)?.toInt());
   }
 
   Map<String, dynamic> toJson() => {

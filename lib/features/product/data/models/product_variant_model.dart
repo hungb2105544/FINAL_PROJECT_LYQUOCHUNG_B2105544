@@ -31,11 +31,11 @@ class ProductVariantModel {
 
   factory ProductVariantModel.fromJson(Map<String, dynamic> json) =>
       ProductVariantModel(
-        id: json['id'],
-        color: json['color'],
-        sku: json['sku'],
-        additionalPrice: (json['additional_price'] as num).toDouble(),
-        isActive: json['is_active'],
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        color: json['color'] as String? ?? '',
+        sku: json['sku'] as String? ?? '',
+        additionalPrice: (json['additional_price'] as num?)?.toDouble() ?? 0.0,
+        isActive: json['is_active'] as bool? ?? false,
         sizes: (json['product_sizes'] as List<dynamic>?)
             ?.map((s) => Sizes.fromJson(s))
             .toList(),
@@ -71,9 +71,9 @@ class ProductVariantImageModel {
 
   factory ProductVariantImageModel.fromJson(Map<String, dynamic> json) {
     return ProductVariantImageModel(
-      id: json['id'],
-      imageUrl: json['image_url'],
-      sortOrder: json['sort_order'],
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      imageUrl: json['image_url'] as String? ?? '',
+      sortOrder: (json['sort_order'] as num?)?.toInt(),
     );
   }
 
@@ -101,9 +101,10 @@ class SimplifiedVariantModel extends HiveObject {
 
   factory SimplifiedVariantModel.fromJson(Map<String, dynamic> json) {
     return SimplifiedVariantModel(
-      color: json['color'] ?? '',
+      color: json['color'] as String? ?? '',
       imageUrl: json['image_url'],
-      variantId: json['variant_id'] ?? json['id'],
+      variantId: (json['variant_id'] as num?)?.toInt() ??
+          (json['id'] as num?)?.toInt(),
     );
   }
 
