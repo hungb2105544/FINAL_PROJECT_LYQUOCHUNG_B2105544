@@ -9,12 +9,12 @@ class BrandRepositoryImpl implements BrandRepository {
   @override
   Future<List<BrandModel>> getAllBrands() async {
     try {
-      final response = await _supabase.from(_tableName).select('*');
+      final response =
+          await _supabase.from(_tableName).select('*').eq('is_active', true);
 
       if (response.isEmpty) {
         return [];
       }
-
       final brands =
           (response as List).map((json) => BrandModel.fromJson(json)).toList();
       return brands;

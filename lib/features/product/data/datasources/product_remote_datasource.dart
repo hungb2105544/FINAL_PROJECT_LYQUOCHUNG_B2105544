@@ -7,4 +7,5 @@ abstract class ProductRemoteDataSource {
   Future<List<ProductModel>> searchProducts(String query);
   Future<List<ProductModel>> getProductsByType(String type_id);
   Future<List<ProductModel>> getFeaturedProducts({int limit = 10});
+  Future<List<ProductModel>> getProductsByBrand(int brandId);
 }

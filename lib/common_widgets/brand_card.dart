@@ -1,19 +1,17 @@
+import 'package:ecommerce_app/features/product/data/models/index.dart';
 import 'package:flutter/material.dart';
 
 class BrandCard extends StatelessWidget {
   /// Đường dẫn đến hình ảnh logo của thương hiệu (thường là URL hoặc path asset).
-  final String imageUrl;
+  final BrandModel brand;
 
-  /// Tên của thương hiệu.
-  final String brandName;
-
+  ///
   /// Hàm được gọi khi người dùng nhấn vào thẻ (card).
   final VoidCallback? onTap;
 
   const BrandCard({
     Key? key,
-    required this.imageUrl,
-    required this.brandName,
+    required this.brand,
     this.onTap,
   }) : super(key: key);
 
@@ -43,7 +41,7 @@ class BrandCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8.0),
               child: Image.network(
-                imageUrl,
+                brand.imageUrl.toString(),
                 height: 60,
                 width: 60,
                 fit: BoxFit.contain,
@@ -70,7 +68,7 @@ class BrandCard extends StatelessWidget {
 
             // 2. Brand Name
             Text(
-              brandName,
+              brand.brandName.toString(),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

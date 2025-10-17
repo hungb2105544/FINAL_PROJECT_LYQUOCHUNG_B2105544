@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
-import 'package:ecommerce_app/features/product/data/models/brand_model.dart'; // Giả sử BrandModel ở đây
 import 'package:ecommerce_app/features/product/domain/repositories/brand_repository.dart'; // BrandRepository
 import 'brand_event.dart'; // BrandEvent đã có
 import 'brand_state.dart'; // BrandState vừa tạo

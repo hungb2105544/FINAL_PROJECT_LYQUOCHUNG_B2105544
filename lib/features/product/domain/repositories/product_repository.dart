@@ -5,6 +5,7 @@ abstract class ProductRepository {
   Future<Product> getProductById(String id);
   Future<List<Product>> searchProducts(String query);
   Future<List<Product>> getProductsByType(int type_id);
+  Future<List<Product>> getProductsByBrand(int brand_id);
   Stream<List<Product>> watchFavoriteProducts();
   Future<void> addToFavorites(String productId);
   Future<void> removeFromFavorites(String productId);

@@ -74,3 +74,11 @@ class GetProductsByTypeEvent extends ProductEvent {
   final int typeId;
   GetProductsByTypeEvent({required this.typeId});
 }
+
+class GetProductsByBrandEvent extends ProductEvent {
+  final int brandId;
+  GetProductsByBrandEvent({required this.brandId});
+
+  @override
+  List<Object?> get props => [brandId];
+}

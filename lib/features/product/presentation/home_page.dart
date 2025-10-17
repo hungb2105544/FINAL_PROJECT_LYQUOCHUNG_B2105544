@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:ecommerce_app/common_widgets/brand_card.dart';
 import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
 import 'package:ecommerce_app/common_widgets/product_card.dart';
+import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_event.dart';
+import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_state.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_state.dart';
@@ -40,6 +44,7 @@ class _HomePageState extends State<HomePage> {
               showCacheFirst: true,
             ),
           );
+      context.read<BrandBloc>().add(LoadBrands());
     });
 
     _scrollController.addListener(_onScroll);
@@ -113,6 +118,9 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _buildCarouselAd(screenHeight, screenWidth, adImages),
                   const SizedBox(height: 20),
+                  _buildSectionTitle(context, "Danh mục thương hiệu"),
+                  _buildBrandsSection(),
+                  const SizedBox(height: 20),
                   _buildSectionTitle(context, "Danh mục sản phẩm"),
                   _buildCategoriesSection(),
                   const SizedBox(height: 20),
@@ -168,6 +176,74 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
+    );
+  }
+
+  // =====================================================
+  // 🏷️ Thương hiệu nổi bật
+  // =====================================================
+  Widget _buildBrandsSection() {
+    return BlocBuilder<BrandBloc, BrandState>(
+      builder: (context, state) {
+        return switch (state) {
+          // Loading state
+          BrandLoading() => const SizedBox(
+              height: 110,
+              child: Center(
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ),
+            ),
+
+          // Error state
+          BrandError(:final message) => SizedBox(
+              height: 110,
+              child: Center(
+                child: Text(
+                  'Lỗi tải thương hiệu: Vui lòng thử lại',
+                  style: TextStyle(color: Colors.red[400]),
+                ),
+              ),
+            ),
+
+          // Loaded state
+          BrandLoaded(:final brands) => brands.isEmpty
+              ? const SizedBox(
+                  height: 110,
+                  child: Center(child: Text('Chưa có thương hiệu nào')),
+                )
+              : SizedBox(
+                  height:
+                      120, // Chiều cao phù hợp cho danh sách thương hiệu ngang
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: brands.length,
+                    itemBuilder: (context, index) {
+                      final brand = brands[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 12.0),
+                        child: GestureDetector(
+                          onTap: () {
+                            print("Click Brand ${brand.brandName}");
+                          },
+                          // Giả định BrandModel có thuộc tính brand_name và brand_logo_url
+                          child: BrandCard(
+                            brand: brand,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+          // Initial state
+          BrandInitial() => const SizedBox(height: 110),
+          BrandState() => throw UnimplementedError(),
+        };
+      },
     );
   }
 
@@ -256,26 +332,6 @@ class _HomePageState extends State<HomePage> {
   // =====================================================
   // 📦 Danh mục sản phẩm
   // =====================================================
-  // Widget _buildCategoriesSection() {
-  //   return SizedBox(
-  //     height: 100,
-  //     child: ListView.builder(
-  //       itemCount: 6,
-  //       scrollDirection: Axis.horizontal,
-  //       itemBuilder: (context, index) {
-  //         return GestureDetector(
-  //           onTap: () => print("Click Category $index"),
-  //           child: CategoryCard(
-  //             categoryName: "Quần short",
-  //             imagePath: index.isEven
-  //                 ? "assets/images/category_image.png"
-  //                 : "assets/images/category_image2.png",
-  //           ),
-  //         );
-  //       },
-  //     ),
-  //   );
-  // }
   Widget _buildCategoriesSection() {
     return BlocBuilder<ProductTypeBloc, ProductTypeState>(
       builder: (context, state) {

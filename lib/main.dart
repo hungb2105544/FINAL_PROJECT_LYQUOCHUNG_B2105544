@@ -10,14 +10,17 @@ import 'package:ecommerce_app/features/cart/data/repositories/cart_repositories.
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/data/repositories/order_repository_impl.dart';
 import 'package:ecommerce_app/features/order/presentation/order_detail_page.dart';
+import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_repository_impl.dart';
+import 'package:ecommerce_app/features/product/data/repositories/brand_repository_impl.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_type_repository_impl.dart';
 import 'package:ecommerce_app/features/product/domain/repositories/product_type_repository.dart';
+import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_brand.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_type.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
@@ -131,6 +134,12 @@ class _MyAppState extends State<MyApp> {
         BlocProvider(
           create: (context) => ProfileBloc(),
         ),
+        Provider(create: (context) => BrandRepositoryImpl()),
+        BlocProvider(
+          create: (context) => BrandBloc(
+            brandRepository: BrandRepositoryImpl(),
+          ),
+        ),
         Provider(
           create: (context) => ProductRemoteDataSourceImpl(),
         ),
@@ -144,8 +153,14 @@ class _MyAppState extends State<MyApp> {
             context.read<ProductRemoteDataSourceImpl>(),
           ),
         ),
+        Provider(
+          create: (context) => GetProductByBrand(
+            context.read<ProductRemoteDataSourceImpl>(),
+          ),
+        ),
         BlocProvider(
             create: (context) => ProductBloc(
+                  getProductsByBrandUseCase: context.read<GetProductByBrand>(),
                   getProductsByTypeUseCase: context.read<GetProductByType>(),
                   getProductsIsActiveUseCase:
                       context.read<GetProductsIsActive>(),
