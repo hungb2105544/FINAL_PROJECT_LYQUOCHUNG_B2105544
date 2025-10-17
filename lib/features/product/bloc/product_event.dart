@@ -69,3 +69,8 @@ class LoadMoreProducts extends ProductEvent {
   @override
   List<Object?> get props => [page, limit];
 }
+
+class GetProductsByTypeEvent extends ProductEvent {
+  final int typeId;
+  GetProductsByTypeEvent({required this.typeId});
+}

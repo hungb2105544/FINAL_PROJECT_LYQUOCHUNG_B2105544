@@ -373,7 +373,9 @@
 //   }
 // }
 import 'dart:async';
+import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_type.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
+
 import 'package:ecommerce_app/service/cache_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
@@ -384,6 +386,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProductBloc extends Bloc<ProductEvent, ProductState> {
   final GetProductsIsActive _getProductsIsActiveUseCase;
+  final GetProductByType _getProductsByTypeUseCase;
   final CacheService _cacheService = CacheService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -396,7 +399,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   ProductBloc({
     required GetProductsIsActive getProductsIsActiveUseCase,
+    required GetProductByType getProductsByTypeUseCase,
   })  : _getProductsIsActiveUseCase = getProductsIsActiveUseCase,
+        _getProductsByTypeUseCase = getProductsByTypeUseCase,
         super(const ProductState()) {
     on<GetProductIsActive>(_getProducts);
     on<LoadProductsFromCache>(_loadProductsFromCache);
@@ -404,7 +409,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<LoadProductsWithCache>(_loadProductsWithCache);
     on<ClearProductsCache>(_clearProductsCache);
     on<LoadMoreProducts>(_loadMoreProducts);
-
+    on<GetProductsByTypeEvent>(_getProductByTypeId);
     _setupRealtimeSubscription();
   }
 
@@ -482,6 +487,46 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isRefreshing: false,
         errorMessage: 'Lỗi khi cập nhật realtime: $e',
       ));
+    }
+  }
+
+  Future<void> _getProductByTypeId(
+    GetProductsByTypeEvent event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      // ❌ KHÔNG xóa products: [] ở đây nữa.
+      emit(state.copyWith(
+        isLoading: true,
+        isRefreshing: false,
+        errorMessage: null,
+        products: [],
+      ));
+
+      // Lấy sản phẩm từ cache trước
+      final cachedProducts =
+          await _loadCachedProductsForType(event.typeId.toString());
+      if (cachedProducts != null && cachedProducts.isNotEmpty) {
+        emit(state.copyWith(
+          isLoading: false,
+          products: cachedProducts,
+          dataSource: DataSource.cache,
+        ));
+      }
+
+      // Sau đó fetch từ server
+      final products =
+          await _getProductsByTypeUseCase.call(event.typeId.toString());
+
+      emit(state.copyWith(
+        isLoading: false,
+        products: products,
+        dataSource: DataSource.server,
+        lastUpdated: DateTime.now(),
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+          isLoading: false, errorMessage: "Lỗi tải sản phẩm: ${e.toString()}"));
     }
   }
 
@@ -699,6 +744,28 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       return products.isEmpty ? null : products;
     } catch (e) {
       print('❌ Error loading cached products: $e');
+      return null;
+    }
+  }
+
+  Future<List<ProductModel>?> _loadCachedProductsForType(String typeId) async {
+    try {
+      final cacheKey = 'products_type_$typeId';
+      if (!_cacheService.isCacheValid(cacheKey)) return null;
+
+      final cachedIds = _metadataBox.get('${cacheKey}_data');
+      if (cachedIds == null) return null;
+
+      final ids =
+          List<String>.from((cachedIds as List).map((e) => e.toString()));
+      final products = ids
+          .map((id) => _productsBox.get(id))
+          .whereType<ProductModel>()
+          .toList();
+
+      return products.isEmpty ? null : products;
+    } catch (e) {
+      print('❌ Error loading cached products for type: $e');
       return null;
     }
   }

@@ -234,18 +234,6 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
   @override
   Future<List<ProductModel>> getProductsByType(String typeId) async {
     try {
-      print('🔍 Fetching products by type: $typeId');
-
-      final String cacheKey = 'products_type_$typeId';
-
-      // Check cache first
-      final cachedProducts = await _getCachedProducts(cacheKey);
-      if (cachedProducts != null) {
-        print(
-            '📱 Retrieved ${cachedProducts.length} products from cache by type');
-        return cachedProducts;
-      }
-
       final int? typeIdInt = int.tryParse(typeId);
       if (typeIdInt == null) {
         throw ArgumentError('Invalid type ID: $typeId');
@@ -253,7 +241,29 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
 
       final response = await client
           .from(_tableName)
-          .select('*')
+          .select(('''
+                  *,
+                  brands (id, brand_name, image_url, description),
+                  product_types (id, type_name, description),
+                  product_variants (
+                    id, color, sku, additional_price, is_active,
+                    sizes (id, size_name),
+                    product_variant_images (id, image_url, sort_order)
+                  ),
+                  
+                  product_ratings (
+                    id, rating, title, comment, images, pros, cons, user_id, created_at
+                  ),
+                  product_sizes(
+                    id,
+                    sizes(id,size_name)
+                  ),
+                  inventory (
+                    id, branch_id, quantity, reserved_quantity,
+                    branches (id, name, phone)
+                  ),
+                  product_price_history(id, product_id, price, effective_date,end_date,is_active, created_by, created_at)
+                '''))
           .eq('type_id', typeIdInt)
           .eq('is_active', true)
           .order('created_at', ascending: false);
@@ -262,29 +272,27 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
 
       final processedResponse =
           _processProductResponse(response.cast<Map<String, dynamic>>());
+      final productsWithDiscounts =
+          await Future.wait(processedResponse.map((json) async {
+        final discountJson = await client.rpc(
+          'get_active_discount_for_product',
+          params: {'p_product_id': json['id']},
+        );
+        if (discountJson != null) {
+          json['product_discounts'] = [discountJson];
+        }
+        return json;
+      }));
 
-      final List<ProductModel> products =
-          processedResponse.map((json) => ProductModel.fromJson(json)).toList();
-
-      // Cache the results
-      await _cacheProducts(cacheKey, products);
-
+      final List<ProductModel> products = productsWithDiscounts
+          .map((json) => ProductModel.fromJson(json))
+          .toList();
       return products;
     } on PostgrestException catch (e) {
       print('❌ Supabase PostgrestException: ${e.message}');
-      final cachedProducts = await _getCachedProducts('products_type_$typeId');
-      if (cachedProducts != null) {
-        print('📱 Returning cached data due to network error');
-        return cachedProducts;
-      }
       throw _handleSupabaseError(e);
     } on Exception catch (e) {
       print('❌ General Exception: $e');
-      final cachedProducts = await _getCachedProducts('products_type_$typeId');
-      if (cachedProducts != null) {
-        print('📱 Returning cached data due to error');
-        return cachedProducts;
-      }
       throw Exception('Failed to fetch products by type $typeId: $e');
     }
   }

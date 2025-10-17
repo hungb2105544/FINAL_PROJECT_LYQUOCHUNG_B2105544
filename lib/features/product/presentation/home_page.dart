@@ -8,6 +8,8 @@ import 'package:ecommerce_app/features/product/bloc/product_state.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_state.dart';
+import 'package:ecommerce_app/features/product/presentation/product_with_type_page.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lottie/lottie.dart';
@@ -344,9 +346,24 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final productType = productTypes[index];
                       return GestureDetector(
-                        onTap: () {
-                          print("Click Category: ${productType.typeName}");
-                          // TODO: Navigate to category detail or filter products
+                        onTap: () async {
+                          // Đợi cho đến khi quay lại từ trang ProductWithTypePage
+                          await Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (context) => ProductWithTypePage(
+                                typeId: productType.id.toString(),
+                                typeName: productType.typeName,
+                              ),
+                            ),
+                          );
+
+                          // Sau khi quay lại, tải lại dữ liệu cho trang chủ
+                          if (mounted) {
+                            context
+                                .read<ProductBloc>()
+                                .add(LoadProductsWithCache());
+                          }
                         },
                         child: CategoryCard(
                           categoryName: productType.typeName,
