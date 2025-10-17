@@ -5,6 +5,9 @@ import 'package:ecommerce_app/common_widgets/product_card.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_state.dart';
+import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
+import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lottie/lottie.dart';
@@ -251,24 +254,117 @@ class _HomePageState extends State<HomePage> {
   // =====================================================
   // 📦 Danh mục sản phẩm
   // =====================================================
+  // Widget _buildCategoriesSection() {
+  //   return SizedBox(
+  //     height: 100,
+  //     child: ListView.builder(
+  //       itemCount: 6,
+  //       scrollDirection: Axis.horizontal,
+  //       itemBuilder: (context, index) {
+  //         return GestureDetector(
+  //           onTap: () => print("Click Category $index"),
+  //           child: CategoryCard(
+  //             categoryName: "Quần short",
+  //             imagePath: index.isEven
+  //                 ? "assets/images/category_image.png"
+  //                 : "assets/images/category_image2.png",
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
   Widget _buildCategoriesSection() {
-    return SizedBox(
-      height: 100,
-      child: ListView.builder(
-        itemCount: 6,
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () => print("Click Category $index"),
-            child: CategoryCard(
-              categoryName: "Quần short",
-              imagePath: index.isEven
-                  ? "assets/images/category_image.png"
-                  : "assets/images/category_image2.png",
+    return BlocBuilder<ProductTypeBloc, ProductTypeState>(
+      builder: (context, state) {
+        return switch (state) {
+          // Loading state
+          ProductTypeLoading() => SizedBox(
+              height: 100,
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ),
             ),
-          );
-        },
-      ),
+
+          // Error state
+          ProductTypeFailure(:final message) => SizedBox(
+              height: 100,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 32, color: Colors.red[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Không thể tải danh mục',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        context.read<ProductTypeBloc>().add(
+                              const FetchProductTypes(),
+                            );
+                      },
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Loaded state
+          ProductTypeLoaded(:final productTypes) => productTypes.isEmpty
+              ? SizedBox(
+                  height: 100,
+                  child: Center(
+                    child: Text(
+                      'Chưa có danh mục nào',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    itemCount: productTypes.length,
+                    scrollDirection: Axis.horizontal,
+                    itemBuilder: (context, index) {
+                      final productType = productTypes[index];
+                      return GestureDetector(
+                        onTap: () {
+                          print("Click Category: ${productType.typeName}");
+                          // TODO: Navigate to category detail or filter products
+                        },
+                        child: CategoryCard(
+                          categoryName: productType.typeName,
+                          // Sử dụng image từ productType nếu có, nếu không dùng default
+                          imagePath: productType.image_url ??
+                              (index.isEven
+                                  ? "assets/images/category_image.png"
+                                  : "assets/images/category_image2.png"),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+          // Initial state
+          ProductTypeInitial() => const SizedBox(height: 100),
+        };
+      },
     );
   }
 

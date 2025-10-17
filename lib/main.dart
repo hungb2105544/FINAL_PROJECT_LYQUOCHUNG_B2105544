@@ -14,8 +14,12 @@ import 'package:ecommerce_app/features/order/presentation/order_detail_page.dart
 import 'package:ecommerce_app/features/order/presentation/order_page.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
+import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_repository_impl.dart';
+import 'package:ecommerce_app/features/product/data/repositories/product_type_repository_impl.dart';
+import 'package:ecommerce_app/features/product/domain/repositories/product_type_repository.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
@@ -82,6 +86,14 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        Provider<ProductTypeRepository>(
+          create: (context) => ProductTypeRepositoryImpl(),
+        ),
+        BlocProvider(
+          create: (context) => ProductTypeBloc(
+            productTypeRepository: context.read<ProductTypeRepository>(),
+          )..add(FetchProductTypes()), // Auto-fetch khi khởi tạo
+        ),
         BlocProvider(
           create: (context) => OrderPaymentBloc(
             orderRepository: OrderRepositoryImpl(
