@@ -28,7 +28,16 @@ class ProductTypeModel {
         image_url: json['image_url'] as String?,
         parent_id: (json['parent_id'] as num?)?.toInt());
   }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProductTypeModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          typeName == other.typeName;
 
+  @override
+  int get hashCode => id.hashCode ^ typeName.hashCode;
   Map<String, dynamic> toJson() => {
         'id': id,
         'type_name': typeName,
@@ -36,4 +45,8 @@ class ProductTypeModel {
         'image_url': image_url,
         'parent_id': parent_id
       };
+  @override
+  String toString() {
+    return 'ProductTypeModel{id: $id, typeName: $typeName, description: $description, parent_id: $parent_id, image_url: $image_url\n}';
+  }
 }

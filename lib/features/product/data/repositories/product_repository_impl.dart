@@ -258,7 +258,7 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
                   ),
                   product_price_history(id, product_id, price, effective_date,end_date,is_active, created_by, created_at)
                 '''))
-          .eq('type_id', brandId)
+          .eq('brand_id', brandId)
           .eq('is_active', true)
           .order('created_at', ascending: false);
 

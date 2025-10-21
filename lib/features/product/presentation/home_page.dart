@@ -3,6 +3,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/brand_card.dart';
 import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
 import 'package:ecommerce_app/common_widgets/product_card.dart';
+import 'package:ecommerce_app/features/chatbot/presentation/chat_page.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_event.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_state.dart';
@@ -12,6 +13,7 @@ import 'package:ecommerce_app/features/product/bloc/product_state.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_state.dart';
+import 'package:ecommerce_app/features/product/presentation/brand_products_screen.dart';
 import 'package:ecommerce_app/features/product/presentation/product_with_type_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -106,6 +108,18 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            CupertinoPageRoute(
+              builder: (context) => const ChatPage(),
+            ),
+          );
+        },
+        child: const Icon(Icons.chat),
+        tooltip: 'Trợ Lý Ảo',
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
@@ -226,8 +240,19 @@ class _HomePageState extends State<HomePage> {
                       return Padding(
                         padding: const EdgeInsets.only(right: 12.0),
                         child: GestureDetector(
-                          onTap: () {
-                            print("Click Brand ${brand.brandName}");
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (context) =>
+                                    BrandProductsScreen(brand: brand),
+                              ),
+                            );
+                            if (mounted) {
+                              context
+                                  .read<ProductBloc>()
+                                  .add(LoadProductsWithCache());
+                            }
                           },
                           // Giả định BrandModel có thuộc tính brand_name và brand_logo_url
                           child: BrandCard(
