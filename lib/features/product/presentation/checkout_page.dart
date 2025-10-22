@@ -1,4 +1,5 @@
 import 'package:ecommerce_app/features/address/data/model/user_address_model.dart';
+import 'dart:convert';
 import 'package:ecommerce_app/features/address/presentation/address_selection_page.dart';
 import 'package:ecommerce_app/features/cart/data/model/cart_item_model.dart';
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
@@ -54,6 +55,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   @override
   Widget build(BuildContext context) {
+    const encoder = JsonEncoder.withIndent('  ');
+    final prettyJson = encoder
+        .convert(widget.listproduct.map((item) => item.toMap()).toList());
+    print('🛒 Danh sách sản phẩm trong CheckOut Page (JSON):\n$prettyJson');
+
     return BlocListener<OrderPaymentBloc, OrderPaymentState>(
       listener: (context, state) {
         if (state is OrderCreatedSuccess) {
@@ -274,11 +280,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                if (item.productImage.isNotEmpty)
+                if (item.imageProduct != null && item.imageProduct!.isNotEmpty)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.network(
-                      item.productImage,
+                      item.imageProduct!,
                       width: 60,
                       height: 60,
                       fit: BoxFit.cover,
@@ -311,7 +317,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.productName,
+                        item.nameProduct ?? 'Sản phẩm không tên',
                         style: const TextStyle(
                           fontWeight: FontWeight.w500,
                           fontSize: 14,

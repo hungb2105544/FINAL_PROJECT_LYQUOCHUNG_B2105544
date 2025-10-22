@@ -18,35 +18,31 @@ import 'package:ecommerce_app/features/product/presentation/product_with_type_pa
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:lottie/lottie.dart';
+import 'package:shimmer/shimmer.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
   Timer? _scrollDebounceTimer;
   bool _isLoadingMore = false;
-  bool _hasShownRealtimeSnack = false;
-
+  @override
+  bool get wantKeepAlive => true;
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // ✅ Load dữ liệu ban đầu (cache + server)
       context.read<ProductBloc>().add(
-            LoadProductsWithCache(
-              page: 1,
-              limit: 20,
-              showCacheFirst: true,
-            ),
+            LoadProductsWithCache(page: 1, limit: 20, showCacheFirst: true),
           );
       context.read<BrandBloc>().add(LoadBrands());
+      context.read<ProductTypeBloc>().add(const FetchProductTypes());
     });
 
     _scrollController.addListener(_onScroll);
@@ -59,26 +55,18 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // =====================================================
-  // 🔁 Xử lý scroll để load thêm sản phẩm
-  // =====================================================
   void _onScroll() {
-    if (_scrollDebounceTimer?.isActive ?? false) {
-      _scrollDebounceTimer!.cancel();
-    }
+    if (_scrollDebounceTimer?.isActive ?? false) _scrollDebounceTimer!.cancel();
 
     _scrollDebounceTimer = Timer(const Duration(milliseconds: 200), () {
       if (_isBottom && !_isLoadingMore) {
-        final currentState = context.read<ProductBloc>().state;
-
-        if (!currentState.hasReachedMax && !currentState.isLoading) {
+        final state = context.read<ProductBloc>().state;
+        if (!state.hasReachedMax && !state.isLoading) {
           setState(() => _isLoadingMore = true);
-
-          context.read<ProductBloc>().add(
-                LoadMoreProducts(page: currentState.currentPage + 1),
-              );
-
-          Future.delayed(const Duration(milliseconds: 500), () {
+          context
+              .read<ProductBloc>()
+              .add(LoadMoreProducts(page: state.currentPage + 1));
+          Future.delayed(const Duration(milliseconds: 400), () {
             if (mounted) setState(() => _isLoadingMore = false);
           });
         }
@@ -89,19 +77,14 @@ class _HomePageState extends State<HomePage> {
   bool get _isBottom {
     if (!_scrollController.hasClients) return false;
     final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.offset;
-    return currentScroll >= (maxScroll * 0.9);
+    final current = _scrollController.offset;
+    return current >= (maxScroll * 0.9);
   }
 
-  // =====================================================
-  // 🧱 UI chính
-  // =====================================================
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    final List<String> adImages = [
+    super.build(context);
+    final adImages = [
       "assets/images/Ad1.png",
       "assets/images/Ad2.png",
       "assets/images/Ad3.png",
@@ -112,71 +95,47 @@ class _HomePageState extends State<HomePage> {
         onPressed: () {
           Navigator.push(
             context,
-            CupertinoPageRoute(
-              builder: (context) => const ChatPage(),
-            ),
+            CupertinoPageRoute(builder: (context) => const ChatPage()),
           );
         },
         child: const Icon(Icons.chat),
         tooltip: 'Trợ Lý Ảo',
       ),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _handleRefresh,
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: RefreshIndicator(
+            onRefresh: _handleRefresh,
+            child: CustomScrollView(
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildCarouselAd(screenHeight, screenWidth, adImages),
-                  const SizedBox(height: 20),
-                  _buildSectionTitle(context, "Danh mục thương hiệu"),
-                  _buildBrandsSection(),
-                  const SizedBox(height: 20),
-                  _buildSectionTitle(context, "Danh mục sản phẩm"),
-                  _buildCategoriesSection(),
-                  const SizedBox(height: 20),
-                  _buildProductsSectionTitle(context),
-                  const SizedBox(height: 12),
-
-                  // =====================================================
-                  // 🧩 Hiển thị danh sách sản phẩm
-                  // =====================================================
-                  BlocConsumer<ProductBloc, ProductState>(
-                    listener: _handleBlocListener,
-                    builder: (context, state) {
-                      return _buildProductsGrid(state);
-                    },
-                  ),
-
-                  // ✅ Loading indicator cho pagination
-                  BlocBuilder<ProductBloc, ProductState>(
-                    builder: (context, state) {
-                      if (state.isLoading &&
-                          state.products.isNotEmpty &&
-                          !state.hasReachedMax) {
-                        return const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-
-                  // ✅ End of list indicator
-                  BlocBuilder<ProductBloc, ProductState>(
+              slivers: [
+                SliverToBoxAdapter(child: _buildCarousel(adImages)),
+                const SliverPadding(
+                    padding: EdgeInsets.symmetric(vertical: 12)),
+                const SliverToBoxAdapter(
+                    child: SectionTitle(title: "Danh mục thương hiệu")),
+                const SliverToBoxAdapter(child: BrandSection()),
+                const SliverPadding(
+                    padding: EdgeInsets.symmetric(vertical: 12)),
+                const SliverToBoxAdapter(
+                    child: SectionTitle(title: "Danh mục sản phẩm")),
+                const SliverToBoxAdapter(child: CategorySection()),
+                const SliverPadding(
+                    padding: EdgeInsets.symmetric(vertical: 12)),
+                const SliverToBoxAdapter(child: ProductSectionTitle()),
+                ProductGridSection(),
+                SliverToBoxAdapter(
+                  child: BlocBuilder<ProductBloc, ProductState>(
                     builder: (context, state) {
                       if (state.hasReachedMax && state.products.isNotEmpty) {
                         return Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            'Đã hiển thị tất cả sản phẩm',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Text(
+                              'Đã hiển thị tất cả sản phẩm',
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 14),
                             ),
                           ),
                         );
@@ -184,8 +143,8 @@ class _HomePageState extends State<HomePage> {
                       return const SizedBox.shrink();
                     },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -193,264 +152,137 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // =====================================================
-  // 🏷️ Thương hiệu nổi bật
-  // =====================================================
-  Widget _buildBrandsSection() {
-    return BlocBuilder<BrandBloc, BrandState>(
-      builder: (context, state) {
-        return switch (state) {
-          // Loading state
-          BrandLoading() => const SizedBox(
-              height: 110,
-              child: Center(
-                child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-              ),
-            ),
-
-          // Error state
-          BrandError(:final message) => SizedBox(
-              height: 110,
-              child: Center(
-                child: Text(
-                  'Lỗi tải thương hiệu: Vui lòng thử lại',
-                  style: TextStyle(color: Colors.red[400]),
-                ),
-              ),
-            ),
-
-          // Loaded state
-          BrandLoaded(:final brands) => brands.isEmpty
-              ? const SizedBox(
-                  height: 110,
-                  child: Center(child: Text('Chưa có thương hiệu nào')),
-                )
-              : SizedBox(
-                  height:
-                      120, // Chiều cao phù hợp cho danh sách thương hiệu ngang
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: brands.length,
-                    itemBuilder: (context, index) {
-                      final brand = brands[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: GestureDetector(
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (context) =>
-                                    BrandProductsScreen(brand: brand),
-                              ),
-                            );
-                            if (mounted) {
-                              context
-                                  .read<ProductBloc>()
-                                  .add(LoadProductsWithCache());
-                            }
-                          },
-                          // Giả định BrandModel có thuộc tính brand_name và brand_logo_url
-                          child: BrandCard(
-                            brand: brand,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-          // Initial state
-          BrandInitial() => const SizedBox(height: 110),
-          BrandState() => throw UnimplementedError(),
-        };
-      },
-    );
-  }
-
-  // =====================================================
-  // 🔄 Kéo để refresh thủ công
-  // =====================================================
   Future<void> _handleRefresh() async {
     final bloc = context.read<ProductBloc>();
     bloc.add(RefreshProducts(page: 1, limit: 20));
-    await bloc.stream
-        .firstWhere(
-          (state) => !state.isRefreshing,
-          orElse: () => bloc.state,
-        )
-        .timeout(const Duration(seconds: 10), onTimeout: () => bloc.state);
+    await bloc.stream.firstWhere(
+      (state) => !state.isRefreshing,
+      orElse: () => bloc.state,
+    );
   }
 
-  // =====================================================
-  // 📢 Lắng nghe thay đổi state để hiển thị SnackBar hoặc lỗi
-  // =====================================================
-  void _handleBlocListener(BuildContext context, ProductState state) {
-    // 🧩 Nếu có lỗi
-    if (state.hasError && state.errorMessage != null) {
-      if (state.products.isEmpty || !state.errorMessage!.contains('đã lưu')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(state.errorMessage!),
-            backgroundColor: Colors.red[600],
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Thử lại',
-              textColor: Colors.white,
-              onPressed: () {
-                context.read<ProductBloc>().add(
-                      LoadProductsWithCache(page: 1, limit: 20),
-                    );
-              },
-            ),
-          ),
-        );
-      }
-    }
-
-    // 🧩 Hiển thị snackbar khi nhận realtime update
-    if (!state.isRefreshing &&
-        state.dataSource == DataSource.server &&
-        !_hasShownRealtimeSnack) {
-      _hasShownRealtimeSnack = true;
-      print("Dữ liệu loading thành công");
-    }
-  }
-
-  // =====================================================
-  // 🎞️ Slider quảng cáo
-  // =====================================================
-  Widget _buildCarouselAd(
-      double screenHeight, double screenWidth, List<String> adImages) {
+  Widget _buildCarousel(List<String> adImages) {
     return CarouselSlider(
       options: CarouselOptions(
-        height: screenHeight * 0.25,
+        height: 200,
         autoPlay: true,
         enlargeCenterPage: true,
         viewportFraction: 0.9,
-        aspectRatio: 16 / 9,
         autoPlayInterval: const Duration(seconds: 4),
       ),
-      items: adImages.map((imagePath) {
+      items: adImages.map((path) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Image.asset(
-            imagePath,
-            width: screenWidth * 0.9,
+            path,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: Colors.grey[300],
-                child: const Icon(Icons.image_not_supported),
-              );
-            },
+            errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey[300],
+              child: const Icon(Icons.image_not_supported),
+            ),
           ),
         );
       }).toList(),
     );
   }
+}
 
-  // =====================================================
-  // 📦 Danh mục sản phẩm
-  // =====================================================
-  Widget _buildCategoriesSection() {
-    return BlocBuilder<ProductTypeBloc, ProductTypeState>(
+// ====================================================================
+// WIDGET CON: Thương hiệu
+// ====================================================================
+
+class BrandSection extends StatelessWidget {
+  const BrandSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<BrandBloc, BrandState>(
+      buildWhen: (p, c) => p != c,
       builder: (context, state) {
         return switch (state) {
-          // Loading state
-          ProductTypeLoading() => SizedBox(
-              height: 100,
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-              ),
-            ),
-
-          // Error state
-          ProductTypeFailure(:final message) => SizedBox(
-              height: 100,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 32, color: Colors.red[400]),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Không thể tải danh mục',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        context.read<ProductTypeBloc>().add(
-                              const FetchProductTypes(),
-                            );
-                      },
-                      child: const Text('Thử lại'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Loaded state
-          ProductTypeLoaded(:final productTypes) => productTypes.isEmpty
-              ? SizedBox(
-                  height: 100,
-                  child: Center(
-                    child: Text(
-                      'Chưa có danh mục nào',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                )
+          BrandLoading() => _shimmer(height: 100),
+          BrandError() => _errorBox('Không tải được thương hiệu'),
+          BrandLoaded(:final brands) => brands.isEmpty
+              ? _emptyBox('Chưa có thương hiệu nào')
               : SizedBox(
-                  height: 100,
-                  child: ListView.builder(
-                    itemCount: productTypes.length,
+                  height: 120,
+                  child: ListView.separated(
                     scrollDirection: Axis.horizontal,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemCount: brands.length,
                     itemBuilder: (context, index) {
-                      final productType = productTypes[index];
+                      final brand = brands[index];
                       return GestureDetector(
                         onTap: () async {
-                          // Đợi cho đến khi quay lại từ trang ProductWithTypePage
                           await Navigator.push(
                             context,
                             CupertinoPageRoute(
-                              builder: (context) => ProductWithTypePage(
-                                typeId: productType.id.toString(),
-                                typeName: productType.typeName,
+                              builder: (_) => BrandProductsScreen(brand: brand),
+                            ),
+                          );
+                          if (context.mounted) {
+                            context
+                                .read<ProductBloc>()
+                                .add(LoadProductsWithCache());
+                          }
+                        },
+                        child: BrandCard(brand: brand),
+                      );
+                    },
+                  ),
+                ),
+          _ => const SizedBox.shrink(),
+        };
+      },
+    );
+  }
+}
+
+// ====================================================================
+// WIDGET CON: Danh mục sản phẩm
+// ====================================================================
+
+class CategorySection extends StatelessWidget {
+  const CategorySection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ProductTypeBloc, ProductTypeState>(
+      builder: (context, state) {
+        return switch (state) {
+          ProductTypeLoading() => _shimmer(height: 100),
+          ProductTypeFailure() => _errorBox('Không thể tải danh mục'),
+          ProductTypeLoaded(:final productTypes) => productTypes.isEmpty
+              ? _emptyBox('Chưa có danh mục nào')
+              : SizedBox(
+                  height: 100,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: productTypes.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) {
+                      final type = productTypes[i];
+                      return GestureDetector(
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (_) => ProductWithTypePage(
+                                typeId: type.id.toString(),
+                                typeName: type.typeName,
                               ),
                             ),
                           );
-
-                          // Sau khi quay lại, tải lại dữ liệu cho trang chủ
-                          if (mounted) {
+                          if (context.mounted) {
                             context
                                 .read<ProductBloc>()
                                 .add(LoadProductsWithCache());
                           }
                         },
                         child: CategoryCard(
-                          categoryName: productType.typeName,
-                          // Sử dụng image từ productType nếu có, nếu không dùng default
-                          imagePath: productType.image_url ??
-                              (index.isEven
+                          categoryName: type.typeName,
+                          imagePath: type.image_url ??
+                              (i.isEven
                                   ? "assets/images/category_image.png"
                                   : "assets/images/category_image2.png"),
                         ),
@@ -458,211 +290,161 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
                 ),
-
-          // Initial state
-          ProductTypeInitial() => const SizedBox(height: 100),
+          _ => const SizedBox.shrink(),
         };
       },
     );
   }
+}
 
-  // =====================================================
-  // 🏷️ Tiêu đề danh sách sản phẩm
-  // =====================================================
-  Widget _buildProductsSectionTitle(BuildContext context) {
+// ====================================================================
+// WIDGET CON: Tiêu đề sản phẩm
+// ====================================================================
+
+class ProductSectionTitle extends StatelessWidget {
+  const ProductSectionTitle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return BlocBuilder<ProductBloc, ProductState>(
+      buildWhen: (p, c) =>
+          p.isRefreshing != c.isRefreshing || p.isFromCache != c.isFromCache,
       builder: (context, state) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(child: _buildSectionTitle(context, "Danh sách sản phẩm")),
-            if (state.products.isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    onPressed: state.isRefreshing
-                        ? null
-                        : () {
-                            context
-                                .read<ProductBloc>()
-                                .add(RefreshProducts(page: 1, limit: 20));
-                          },
-                    icon: state.isRefreshing
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh, size: 16),
-                    label: Text(
-                      state.isRefreshing ? 'Đang tải...' : 'Làm mới',
-                      style: const TextStyle(fontSize: 12),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SectionTitle(title: "Danh sách sản phẩm"),
+              if (state.products.isNotEmpty)
+                Row(
+                  children: [
+                    IconButton(
+                      icon: state.isRefreshing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.refresh, size: 18),
+                      onPressed: state.isRefreshing
+                          ? null
+                          : () => context
+                              .read<ProductBloc>()
+                              .add(RefreshProducts(page: 1, limit: 20)),
                     ),
-                  ),
-                  if (state.isFromCache && !state.isRefreshing)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    if (state.isFromCache && !state.isRefreshing)
+                      const Row(
                         children: [
                           Icon(Icons.cached, size: 12, color: Colors.orange),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Dữ liệu đã lưu',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.orange[700],
-                            ),
-                          ),
+                          SizedBox(width: 4),
+                          Text('Dữ liệu đã lưu',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.orange)),
                         ],
-                      ),
-                    ),
-                ],
-              ),
-          ],
+                      )
+                  ],
+                ),
+            ],
+          ),
         );
       },
     );
   }
+}
 
-  // =====================================================
-  // 🧱 Hiển thị danh sách sản phẩm
-  // =====================================================
-  Widget _buildProductsGrid(ProductState state) {
-    if (state.isLoading && state.products.isEmpty && !state.isRefreshing) {
-      return SizedBox(
-        height: 300,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Lottie.asset(
-                "assets/lottie/loading_viemode.json",
-                height: 100,
-                width: 100,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Đang tải sản phẩm...',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+// ====================================================================
+// WIDGET CON: Lưới sản phẩm
+// ====================================================================
 
-    if (state.products.isEmpty && !state.isLoading && !state.isRefreshing) {
-      return SizedBox(
-        height: 300,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.inventory_2_outlined,
-                  size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              Text(
-                "Không có sản phẩm nào",
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                state.errorMessage ?? "Vui lòng thử lại sau",
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () {
-                  context.read<ProductBloc>().add(
-                        LoadProductsWithCache(page: 1, limit: 20),
-                      );
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Thử lại'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+class ProductGridSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: BlocBuilder<ProductBloc, ProductState>(
+        buildWhen: (p, c) =>
+            p.products != c.products || p.isLoading != c.isLoading,
+        builder: (context, state) {
+          if (state.isLoading && state.products.isEmpty) {
+            return _shimmer(height: 300);
+          }
 
-    // ✅ Grid sản phẩm
-    return Column(
-      children: [
-        if (state.isRefreshing && state.products.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue[200]!),
+          if (state.products.isEmpty && !state.isLoading) {
+            return _emptyBox('Không có sản phẩm nào');
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GridView.builder(
+              cacheExtent: 500,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: state.products.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 20,
+                childAspectRatio: 0.55,
+              ),
+              itemBuilder: (_, i) {
+                final product = state.products[i];
+                return ProductCard(product: product);
+              },
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.blue),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  state.dataSourceMessage,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.blue[700],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: state.products.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 20,
-            childAspectRatio: 0.55,
-          ),
-          itemBuilder: (context, index) {
-            final product = state.products[index];
-            return GestureDetector(
-              onTap: () => print("Click Product ${product.name}"),
-              child: ProductCard(product: product),
-            );
-          },
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
+}
 
-  // =====================================================
-  // 🏷️ Tiêu đề section
-  // =====================================================
-  Widget _buildSectionTitle(BuildContext context, String title) {
+// ====================================================================
+// TIỆN ÍCH DÙNG CHUNG
+// ====================================================================
+
+class SectionTitle extends StatelessWidget {
+  final String title;
+  const SectionTitle({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        child: Text(title, style: Theme.of(context).textTheme.headlineMedium),
       ),
     );
   }
+}
+
+Widget _emptyBox(String text) => SizedBox(
+      height: 100,
+      child: Center(
+        child: Text(text, style: TextStyle(color: Colors.grey[600])),
+      ),
+    );
+
+Widget _errorBox(String text) => SizedBox(
+      height: 100,
+      child: Center(
+        child: Text(text, style: TextStyle(color: Colors.red[400])),
+      ),
+    );
+
+Widget _shimmer({required double height}) {
+  return Shimmer.fromColors(
+    baseColor: Colors.grey.shade300,
+    highlightColor: Colors.grey.shade100,
+    child: Container(
+      height: height,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+    ),
+  );
 }

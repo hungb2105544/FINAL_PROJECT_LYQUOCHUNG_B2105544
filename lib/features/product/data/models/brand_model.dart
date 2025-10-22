@@ -43,7 +43,6 @@ class BrandModel {
     return other is BrandModel && other.id == id;
   }
 
-  // ✅ Ghi đè hashCode để Set có thể hoạt động chính xác
   @override
   int get hashCode => id.hashCode;
 }

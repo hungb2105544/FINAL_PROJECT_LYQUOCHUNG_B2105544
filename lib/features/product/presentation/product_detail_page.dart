@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/custom_widget.dart';
 import 'package:ecommerce_app/common_widgets/product_variant_card.dart';
 import 'package:ecommerce_app/core/data/datasources/supabase_client.dart';
+import 'package:ecommerce_app/features/cart/data/model/cart_item_model.dart';
 import 'package:ecommerce_app/features/product/data/models/branch_stock_model.dart';
+import 'package:ecommerce_app/features/product/data/models/index.dart';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
+import 'package:ecommerce_app/features/product/presentation/checkout_page.dart';
 import 'package:ecommerce_app/features/product/widget/custom_widget.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
@@ -40,7 +44,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     _loadNearestStock();
   }
 
-  // Initialize default selections
   void _initializeDefaultSelections() {
     // Set default color if available
     if (widget.product.simplifiedVariants?.isNotEmpty == true) {
@@ -157,6 +160,287 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => _buildAddToCartModal(),
+    );
+  }
+
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(amount);
+  }
+
+  CartItem _createCartItemFromProduct() {
+    final prices = _calculatePrices();
+
+    return CartItem(
+      id: DateTime.now().millisecondsSinceEpoch,
+      cartId: 0,
+      productId: widget.product.id!,
+      variantId: selectedColor?['id'] as int?,
+      quantity: quantity,
+      addedAt: DateTime.now(),
+      price: prices['finalPrice']!,
+
+      // Product data
+      productData: {
+        'id': widget.product.id,
+        'name': widget.product.name,
+        'image_urls': widget.product.imageUrls,
+        'price': prices['finalPrice'],
+      },
+
+      variantData: selectedColor != null
+          ? {
+              'id': selectedColor!['id'],
+              'color': selectedColor!['color'],
+              'image_url': selectedColor!['image_url'],
+            }
+          : null,
+
+      nameProduct: widget.product.name,
+      imageProduct: selectedColor?['image_url'] as String? ??
+          (widget.product.imageUrls?.isNotEmpty == true
+              ? widget.product.imageUrls!.first
+              : null),
+    );
+  }
+
+  void _proceedToCheckout() {
+    try {
+      final cartItem = _createCartItemFromProduct();
+      const encoder = JsonEncoder.withIndent('  ');
+      final prettyJson = encoder.convert(cartItem.toMap());
+      print('Proceeding to checkout with cart item (JSON):\n$prettyJson');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CheckoutPage(
+            listproduct: [cartItem],
+          ),
+        ),
+      );
+    } catch (e) {
+      _showSnackBar("Có lỗi xảy ra: ${e.toString()}", Colors.red);
+    }
+  }
+
+  Widget _buildBuyNowConfirmModal() {
+    final prices = _calculatePrices();
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+
+    final variantText = [
+      if (selectedSize.isNotEmpty) "Size: $selectedSize",
+      if (selectedColor != null) "Màu: ${selectedColor!['color']}"
+    ].join(", ");
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Xác nhận mua ngay",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const Divider(),
+
+          // Product Info
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  selectedColor?['image_url'] ??
+                      widget.product.imageUrls?.first ??
+                      '',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 80,
+                      height: 80,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.image_not_supported),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.product.name ?? "",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    if (variantText.isNotEmpty)
+                      Text(
+                        variantText,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    Text(
+                      "Số lượng: $quantity",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Price Breakdown
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Đơn giá:"),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          currencyFormatter.format(prices['finalPrice']),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (prices['discount']! > 0)
+                          Text(
+                            currencyFormatter.format(prices['originalPrice']),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              decoration: TextDecoration.lineThrough,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Thành tiền:",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      currencyFormatter.format(prices['totalPrice']),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Info notice
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Bạn sẽ được chuyển đến trang thanh toán",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text("Hủy"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _proceedToCheckout();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.secondary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    "Tiến hành thanh toán",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1215,40 +1499,49 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           child: Row(
             children: [
               Expanded(
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: (nearestStock?.availableStock ?? 0) > 0
                         ? Theme.of(context).colorScheme.primary
                         : Colors.grey,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: (nearestStock?.availableStock ?? 0) > 0
                       ? _showAddToCartModal
                       : null,
-                  child: Text(
+                  icon: const Icon(Icons.add_shopping_cart, size: 20),
+                  label: Text(
                     (nearestStock?.availableStock ?? 0) > 0
-                        ? "Thêm vào giỏ hàng"
+                        ? "Thêm giỏ hàng"
                         : "Hết hàng",
-                    style: const TextStyle(fontSize: 18),
+                    style: const TextStyle(fontSize: 15),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: (nearestStock?.availableStock ?? 0) > 0
-                      ? Theme.of(context).colorScheme.secondary
-                      : Colors.grey,
-                ),
-                onPressed: (nearestStock?.availableStock ?? 0) > 0
-                    ? () => _buyNow()
-                    : null,
-                child: Text(
-                  (nearestStock?.availableStock ?? 0) > 0
-                      ? "Mua ngay"
-                      : "Hết hàng",
-                  style: const TextStyle(fontSize: 18),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: (nearestStock?.availableStock ?? 0) > 0
+                        ? Theme.of(context).colorScheme.secondary
+                        : Colors.grey,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed:
+                      (nearestStock?.availableStock ?? 0) > 0 ? _buyNow : null,
+                  icon: const Icon(Icons.flash_on, size: 20),
+                  label: Text(
+                    (nearestStock?.availableStock ?? 0) > 0
+                        ? "Mua ngay"
+                        : "Hết hàng",
+                    style: const TextStyle(fontSize: 15),
+                  ),
                 ),
               ),
             ],
@@ -1266,32 +1559,40 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     }
 
     // Validate selections
-    if (selectedColor == null) {
+    if (selectedColor == null &&
+        widget.product.simplifiedVariants?.isNotEmpty == true) {
       _showSnackBar("Vui lòng chọn màu sắc", Colors.orange);
       return;
     }
 
     final availableStock = nearestStock?.availableStock ?? 0;
+    if (availableStock <= 0) {
+      _showSnackBar("Sản phẩm đã hết hàng", Colors.red);
+      return;
+    }
+
     if (quantity > availableStock) {
       _showSnackBar("Chỉ còn $availableStock sản phẩm", Colors.orange);
       return;
     }
 
-    debugPrint(
-        "Mua ngay: size=$selectedSize, màu=${selectedColor?['color']}, số lượng=$quantity");
+    // Hiển thị modal xác nhận mua ngay
+    _showBuyNowConfirmModal();
+  }
 
-    // TODO: Navigate to checkout with this product
-    // Navigator.pushNamed(context, CheckoutPage.routeName, arguments: {
-    //   'products': [widget.product],
-    //   'quantity': quantity,
-    //   'selectedVariant': selectedColor,
-    //   'selectedSize': selectedSize,
-    // });
+  void _showBuyNowConfirmModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => _buildBuyNowConfirmModal(),
+    );
   }
 
   @override
   void dispose() {
-    // Clean up any controllers or subscriptions here
     super.dispose();
   }
 }
