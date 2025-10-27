@@ -750,7 +750,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     final prices = _calculatePrices();
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(

@@ -23,6 +23,7 @@ import 'package:ecommerce_app/features/product/domain/repositories/product_type_
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_brand.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_type.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
+import 'package:ecommerce_app/features/product/domain/usecase/search_products.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/data/local/hive_profile_setup.dart';
 import 'package:ecommerce_app/features/rank/bloc/rank_bloc.dart';
@@ -158,12 +159,19 @@ class _MyAppState extends State<MyApp> {
             context.read<ProductRemoteDataSourceImpl>(),
           ),
         ),
+        Provider(
+          create: (context) => SearchProducts(
+            context.read<ProductRemoteDataSourceImpl>(),
+          ),
+        ),
         BlocProvider(
             create: (context) => ProductBloc(
                   getProductsByBrandUseCase: context.read<GetProductByBrand>(),
                   getProductsByTypeUseCase: context.read<GetProductByType>(),
                   getProductsIsActiveUseCase:
                       context.read<GetProductsIsActive>(),
+                  searchProductsUseCase: context
+                      .read<SearchProducts>(), // Thêm use case tìm kiếm vào đây
                 )..add(GetProductIsActive()))
       ],
       child: MaterialApp(

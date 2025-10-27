@@ -74,18 +74,22 @@ class ProductModel extends Product {
         final firstVariant = variantsJson.first;
 
         if (firstVariant is Map<String, dynamic>) {
-          // Check if this is simplified variant (has id, color, image_url)
-          if (firstVariant.containsKey('id') &&
+          final hasOnlyBasicFields = firstVariant.containsKey('id') &&
               firstVariant.containsKey('color') &&
               firstVariant.containsKey('image_url') &&
-              firstVariant.keys.length <= 3) {
-            // This is simplified variant from _simplifyProductVariants
+              !firstVariant.containsKey('sku') &&
+              !firstVariant.containsKey('product_sizes') &&
+              !firstVariant.containsKey('product_variant_images');
+
+          if (hasOnlyBasicFields) {
             simplifiedVariants = variantsJson.cast<Map<String, dynamic>>();
+            print(
+                '✅ Detected simplified variants: ${simplifiedVariants.length}');
           } else {
-            // This is full variant data
             fullVariants = variantsJson
                 .map((v) => ProductVariantModel.fromJson(v))
                 .toList();
+            print('✅ Detected full variants: ${fullVariants.length}');
           }
         }
       }

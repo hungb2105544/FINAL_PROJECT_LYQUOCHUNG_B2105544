@@ -13,7 +13,7 @@ class Sizes {
   factory Sizes.fromJson(Map<String, dynamic> json) {
     return Sizes(
       id: json['id'],
-      sizeName: json['size_name'],
+      sizeName: json['size_name'] ?? '',
     );
   }
 

@@ -17,6 +17,8 @@ class ProductState extends Equatable {
   final DataSource dataSource;
   final DateTime? lastUpdated;
   final int currentPage;
+  final bool isSearching;
+  final List<ProductModel> searchResults;
 
   const ProductState({
     this.products = const [],
@@ -27,6 +29,8 @@ class ProductState extends Equatable {
     this.dataSource = DataSource.none,
     this.lastUpdated,
     this.currentPage = 1,
+    this.isSearching = false,
+    this.searchResults = const [],
   });
 
   @override
@@ -39,6 +43,8 @@ class ProductState extends Equatable {
         dataSource,
         lastUpdated,
         currentPage,
+        isSearching,
+        searchResults,
       ];
 
   ProductState copyWith({
@@ -50,6 +56,8 @@ class ProductState extends Equatable {
     DataSource? dataSource,
     DateTime? lastUpdated,
     int? currentPage,
+    bool? isSearching,
+    List<ProductModel>? searchResults,
   }) {
     return ProductState(
       products: products ?? this.products,
@@ -60,6 +68,8 @@ class ProductState extends Equatable {
       dataSource: dataSource ?? this.dataSource,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       currentPage: currentPage ?? this.currentPage,
+      isSearching: isSearching ?? this.isSearching,
+      searchResults: searchResults ?? this.searchResults,
     );
   }
 

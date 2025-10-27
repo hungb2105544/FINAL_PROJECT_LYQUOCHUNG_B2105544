@@ -82,3 +82,12 @@ class GetProductsByBrandEvent extends ProductEvent {
   @override
   List<Object?> get props => [brandId];
 }
+
+class SearchProductsEvent extends ProductEvent {
+  final String query;
+
+  SearchProductsEvent({required this.query});
+
+  @override
+  List<Object> get props => [query];
+}

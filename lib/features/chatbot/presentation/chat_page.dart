@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ecommerce_app/service/dialogflow_service.dart';
+import 'dart:convert';
+import 'package:ecommerce_app/features/product/data/models/product_model.dart';
+import 'package:ecommerce_app/features/product/presentation/product_detail_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -40,15 +43,14 @@ class _ChatPageState extends State<ChatPage> {
 
     try {
       final reply = await DialogflowService.sendMessage(trimmedText);
-
       setState(() {
         _isTyping = false;
         if (reply['object'] != null && reply['object']['products'] != null) {
           _messages.add(ChatMessage(
             isUser: false,
             text: reply['text'],
-            products:
-                List<Map<String, dynamic>>.from(reply['object']['products']),
+            products: List<Map<String, dynamic>>.from(
+                reply['object']['products']['products']),
             timestamp: DateTime.now(),
           ));
         } else {
@@ -70,6 +72,7 @@ class _ChatPageState extends State<ChatPage> {
           timestamp: DateTime.now(),
         ));
       });
+      debugPrint("❌ Lỗi trong _sendMessage: $e");
     }
   }
 
@@ -165,9 +168,9 @@ class _ChatPageState extends State<ChatPage> {
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              _buildSuggestionChip("Tìm điện thoại"),
-              _buildSuggestionChip("Laptop giá tốt"),
-              _buildSuggestionChip("Khuyến mãi"),
+              _buildSuggestionChip("Áo Polo"),
+              _buildSuggestionChip("Áo thun"),
+              _buildSuggestionChip("Quần short"),
             ],
           ),
         ],
@@ -302,18 +305,65 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildProductCard(Map<String, dynamic> product) {
-    final id = product['id'];
     final name = product['name'] ?? 'Sản phẩm';
     final price = product['final_price'] ?? product['price'] ?? 0;
-    final img = product['image'] ?? '';
+    final img = product['image_urls'][0] ?? '';
+    Map<String, dynamic> _simplifyProductForDisplay(
+        Map<String, dynamic> product) {
+      final processedProduct = Map<String, dynamic>.from(product);
+
+      if (processedProduct['product_variants'] != null) {
+        final variants = processedProduct['product_variants'] as List;
+        final Map<String, Map<String, dynamic>> colorMap = {};
+
+        for (final variant in variants) {
+          final String? color = variant['color'];
+          final int? variantId = variant['id'];
+
+          if (variantId != null &&
+              color != null &&
+              !colorMap.containsKey(color)) {
+            String? imageUrl;
+            final images = variant['product_variant_images'];
+            if (images is List && images.isNotEmpty) {
+              imageUrl = images.first['image_url'];
+            }
+
+            colorMap[color] = {
+              'id': variantId,
+              'color': color,
+              'image_url': imageUrl,
+            };
+          }
+        }
+
+        processedProduct['product_variants'] = colorMap.values.toList();
+
+        debugPrint('🎨 Simplified ${colorMap.length} color variants');
+      }
+
+      return processedProduct;
+    }
 
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to product detail
-        debugPrint("🛍️ Click sản phẩm ID: $id");
-        // Navigator.push(context, MaterialPageRoute(
-        //   builder: (_) => ProductDetailPage(id: id)
-        // ));
+        try {
+          final processedProduct = _simplifyProductForDisplay(product);
+          final ProductModel productToShow =
+              ProductModel.fromJson(processedProduct);
+          debugPrint(
+              '✅ simplifiedVariants: ${productToShow.simplifiedVariants}');
+          debugPrint('✅ availableColors: ${productToShow.availableColors}');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProductDetailPage(product: productToShow),
+            ),
+          );
+        } catch (e, stack) {
+          debugPrint("❌ Error: $e");
+          debugPrint("Stack: $stack");
+        }
       },
       child: Container(
         width: 160,

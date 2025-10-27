@@ -35,7 +35,7 @@ class ProductVariantModel {
         color: json['color'] as String? ?? '',
         sku: json['sku'] as String? ?? '',
         additionalPrice: (json['additional_price'] as num?)?.toDouble() ?? 0.0,
-        isActive: json['is_active'] as bool? ?? false,
+        isActive: json['is_active'] as bool? ?? true,
         sizes: (json['product_sizes'] as List<dynamic>?)
             ?.map((s) => Sizes.fromJson(s))
             .toList(),

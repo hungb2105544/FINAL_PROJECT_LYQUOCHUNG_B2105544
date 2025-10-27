@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:ecommerce_app/common_widgets/brand_card.dart';
 import 'package:ecommerce_app/common_widgets/caterogy_cart.dart';
+import 'package:ecommerce_app/common_widgets/custom_widget.dart';
 import 'package:ecommerce_app/common_widgets/product_card.dart';
 import 'package:ecommerce_app/features/chatbot/presentation/chat_page.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
@@ -91,15 +92,13 @@ class _HomePageState extends State<HomePage>
     ];
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: ChatBubbleFAB(
         onPressed: () {
           Navigator.push(
             context,
             CupertinoPageRoute(builder: (context) => const ChatPage()),
           );
         },
-        child: const Icon(Icons.chat),
-        tooltip: 'Trợ Lý Ảo',
       ),
       body: SafeArea(
         child: Padding(

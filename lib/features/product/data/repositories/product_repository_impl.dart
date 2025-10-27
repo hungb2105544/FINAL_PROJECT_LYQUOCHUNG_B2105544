@@ -371,7 +371,28 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       // For search, we typically don't cache as results can be very dynamic
       final response = await client
           .from(_tableName)
-          .select('*')
+          .select('''
+                  *,
+                  brands (id, brand_name, image_url, description),
+                  product_types (id, type_name, description),
+                  product_variants (
+                    id, color, sku, additional_price, is_active,
+                    sizes (id, size_name),
+                    product_variant_images (id, image_url, sort_order)
+                  ),
+                  product_ratings (
+                    id, rating, title, comment, images, pros, cons, user_id, created_at
+                  ),
+                  product_sizes(
+                    id,
+                    sizes(id,size_name)
+                  ),
+                  inventory (
+                    id, branch_id, quantity, reserved_quantity,
+                    branches (id, name, phone)
+                  ),
+                  product_price_history(id, product_id, price, effective_date,end_date,is_active, created_by, created_at)
+                ''')
           .eq('is_active', true)
           .or('name.ilike.%$query%,'
               'description.ilike.%$query%,'
@@ -386,9 +407,22 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       final processedResponse =
           _processProductResponse(response.cast<Map<String, dynamic>>());
 
-      final List<ProductModel> products =
-          processedResponse.map((json) => ProductModel.fromJson(json)).toList();
+      // Lấy khuyến mãi đang hoạt động cho từng sản phẩm
+      final productsWithDiscounts =
+          await Future.wait(processedResponse.map((json) async {
+        final discountJson = await client.rpc(
+          'get_active_discount_for_product',
+          params: {'p_product_id': json['id']},
+        );
+        if (discountJson != null) {
+          json['product_discounts'] = [discountJson];
+        }
+        return json;
+      }));
 
+      final List<ProductModel> products = productsWithDiscounts
+          .map((json) => ProductModel.fromJson(json))
+          .toList();
       return products;
     } on PostgrestException catch (e) {
       print('❌ Supabase PostgrestException: ${e.message}');

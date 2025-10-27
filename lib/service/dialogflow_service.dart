@@ -42,7 +42,19 @@ class DialogflowService {
 
       final decoded = jsonDecode(response.body);
       final result = decoded['queryResult'] ?? {};
-      final text = result['fulfillmentText'] ?? "";
+      String text = result['fulfillmentText'] ?? "";
+
+      if (text.isEmpty) {
+        final messages = result['fulfillmentMessages'] ?? [];
+        for (var msg in messages) {
+          if (msg['text'] != null &&
+              msg['text']['text'] != null &&
+              msg['text']['text'].isNotEmpty) {
+            text = msg['text']['text'][0];
+            break;
+          }
+        }
+      }
 
       // ✅ Tìm object JSON trong payload
       Map<String, dynamic>? payloadObj;
