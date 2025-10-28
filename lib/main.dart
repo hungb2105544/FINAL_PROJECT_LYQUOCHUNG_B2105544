@@ -11,14 +11,17 @@ import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/data/repositories/order_repository_impl.dart';
 import 'package:ecommerce_app/features/order/presentation/order_detail_page.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/favorite_bloc/favorite_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/poduct_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_event.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/product_type_bloc/product_type_event.dart';
 import 'package:ecommerce_app/features/product/data/local/hive_product_setup.dart';
+import 'package:ecommerce_app/features/product/data/repositories/favorite_repository_impl.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_repository_impl.dart';
 import 'package:ecommerce_app/features/product/data/repositories/brand_repository_impl.dart';
 import 'package:ecommerce_app/features/product/data/repositories/product_type_repository_impl.dart';
+import 'package:ecommerce_app/features/product/domain/repositories/favorite_repository.dart';
 import 'package:ecommerce_app/features/product/domain/repositories/product_type_repository.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_brand.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_type.dart';
@@ -92,10 +95,16 @@ class _MyAppState extends State<MyApp> {
         Provider<ProductTypeRepository>(
           create: (context) => ProductTypeRepositoryImpl(),
         ),
+        Provider<FavoriteRepository>(
+          create: (context) => FavoriteRepositoryImpl(SupabaseConfig.client),
+        ),
+        BlocProvider(
+          create: (context) => FavoriteBloc(context.read<FavoriteRepository>()),
+        ),
         BlocProvider(
           create: (context) => ProductTypeBloc(
             productTypeRepository: context.read<ProductTypeRepository>(),
-          )..add(FetchProductTypes()), // Auto-fetch khi khởi tạo
+          )..add(FetchProductTypes()),
         ),
         BlocProvider(
           create: (context) => OrderPaymentBloc(

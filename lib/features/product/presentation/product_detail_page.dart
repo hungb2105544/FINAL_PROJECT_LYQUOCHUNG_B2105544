@@ -13,6 +13,9 @@ import 'package:ecommerce_app/features/product/presentation/checkout_page.dart';
 import 'package:ecommerce_app/features/product/widget/custom_widget.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_event.dart';
+import 'package:ecommerce_app/features/product/bloc/favorite_bloc/favorite_bloc.dart';
+import 'package:ecommerce_app/features/product/bloc/favorite_bloc/favorite_event.dart';
+import 'package:ecommerce_app/features/product/bloc/favorite_bloc/favorite_state.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -760,11 +763,28 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.favorite_border,
-                color: Theme.of(context).primaryColor),
-            onPressed: () {
-              // Add to wishlist functionality
+          BlocBuilder<FavoriteBloc, FavoriteState>(
+            builder: (context, state) {
+              final isFavorite =
+                  state.favoriteProductIds.contains(widget.product.id);
+              return IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color:
+                      isFavorite ? Colors.red : Theme.of(context).primaryColor,
+                ),
+                onPressed: () {
+                  final userId = SupabaseConfig.client.auth.currentUser?.id;
+                  if (userId != null) {
+                    context
+                        .read<FavoriteBloc>()
+                        .add(ToggleFavorite(widget.product.id));
+                  } else {
+                    _showSnackBar("Vui lòng đăng nhập để sử dụng chức năng này",
+                        Colors.orange);
+                  }
+                },
+              );
             },
           ),
           IconButton(

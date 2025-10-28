@@ -3,6 +3,7 @@ import 'package:ecommerce_app/features/address/presentation/address_screen.dart'
 import 'package:ecommerce_app/features/address/presentation/address_user_screen.dart';
 import 'package:ecommerce_app/features/auth/presentation/login_page.dart';
 import 'package:ecommerce_app/features/order/presentation/order_page.dart';
+import 'package:ecommerce_app/features/product/presentation/favorite_sceen.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_bloc.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_event.dart';
 import 'package:ecommerce_app/features/profile/bloc/profile_state.dart';
@@ -124,6 +125,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.info,
                           title: "Chính sách người dùng",
                           onTap: () => print("Đi tới chính sách người dùng"),
+                        ),
+                        ProfileCard(
+                          color: Colors.teal,
+                          icon: Icons.info,
+                          title: "San phẩm yêu thích",
+                          onTap: () => Navigator.push(
+                            context,
+                            CupertinoPageRoute(
+                              builder: (context) => FavoriteSceen(),
+                            ),
+                          ),
                         ),
                         ProfileCard(
                           color: Colors.red,
