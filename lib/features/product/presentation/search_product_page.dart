@@ -98,7 +98,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
 
   List<String> _searchSuggestions = [];
   List<ProductModel> _filteredResults = [];
-  bool _showSuggestions = false; // Giữ lại để điều khiển UI gợi ý
+  bool _showSuggestions = false;
   String _lastQuery = '';
 
   // Filter state
@@ -115,9 +115,6 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
         setState(() => _showSuggestions = false);
       }
     });
-
-    // Không cần load tất cả sản phẩm ở đây nữa
-    // context.read<ProductBloc>().add(LoadProductsWithCache());
   }
 
   @override
@@ -128,6 +125,43 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     super.dispose();
   }
 
+  // ✅ HELPER METHOD: Kiểm tra sản phẩm có thực sự còn hàng không
+  bool _isProductInStock(ProductModel product) {
+    // Kiểm tra sản phẩm có active không
+    if (product.isActive != true) {
+      return false;
+    }
+
+    // Kiểm tra tồn kho thực tế
+    if (product.inventory == null || product.inventory!.isEmpty) {
+      return false;
+    }
+
+    // Tính tổng số lượng có sẵn trong tất cả các chi nhánh
+    int totalAvailable = 0;
+    for (var inv in product.inventory!) {
+      int available = (inv.quantity ?? 0) - (inv.reservedQuantity ?? 0);
+      totalAvailable += available;
+    }
+
+    return totalAvailable > 0;
+  }
+
+  // ✅ HELPER METHOD: Lấy tổng số lượng tồn kho có sẵn
+  int _getAvailableStock(ProductModel product) {
+    if (product.inventory == null || product.inventory!.isEmpty) {
+      return 0;
+    }
+
+    int totalAvailable = 0;
+    for (var inv in product.inventory!) {
+      int available = (inv.quantity ?? 0) - (inv.reservedQuantity ?? 0);
+      totalAvailable += available;
+    }
+
+    return totalAvailable;
+  }
+
   void _onSearchChanged() {
     final query = _searchController.text.trim();
 
@@ -135,8 +169,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       setState(() {
         _searchSuggestions = [];
         _showSuggestions = false;
-        context.read<ProductBloc>().add(
-            SearchProductsEvent(query: '')); // Xóa kết quả tìm kiếm trong bloc
+        context.read<ProductBloc>().add(SearchProductsEvent(query: ''));
       });
       _applyFilters();
       return;
@@ -146,7 +179,6 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
 
     _debouncer.run(() {
       _fetchSearchSuggestions(query);
-      // Gửi event tìm kiếm đến BLoC
       _lastQuery = query;
       context.read<ProductBloc>().add(SearchProductsEvent(query: query));
     });
@@ -156,11 +188,9 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     if (query.isEmpty) return;
 
     try {
-      // Tối ưu query để search chính xác hơn
       final searchTerms = query.toLowerCase().trim().split(' ');
-      final queryConditions = searchTerms.map((term) => 
-        'name.ilike.%$term%'
-      ).join(',');
+      final queryConditions =
+          searchTerms.map((term) => 'name.ilike.%$term%').join(',');
 
       final response = await supabase
           .from('products')
@@ -170,8 +200,8 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
 
       final results = (response as List)
           .map((item) => item['name'] as String)
-          .where((name) => searchTerms.every((term) => 
-            name.toLowerCase().contains(term.toLowerCase())))
+          .where((name) => searchTerms
+              .every((term) => name.toLowerCase().contains(term.toLowerCase())))
           .toList();
 
       if (!mounted) return;
@@ -185,42 +215,41 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     return text
         .toLowerCase()
         .trim()
-        .replaceAll(RegExp(r'[^\w\s]'), '') // Loại bỏ ký tự đặc biệt
-        .replaceAll(RegExp(r'\s+'), ' '); // Chuẩn hóa khoảng trắng
+        .replaceAll(RegExp(r'[^\w\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   bool _matchesSearch(String haystack, String needle) {
     final normalizedHaystack = _normalizeSearchText(haystack);
     final normalizedNeedle = _normalizeSearchText(needle);
-    
-    // Tách từ khóa tìm kiếm thành các từ riêng biệt
+
     final searchTerms = normalizedNeedle.split(' ');
-    
-    // Kiểm tra xem tất cả các từ khóa có xuất hiện trong text hay không
+
     return searchTerms.every((term) => normalizedHaystack.contains(term));
   }
 
+  // ✅ CẬP NHẬT: Apply filters với logic tồn kho mới
   void _applyFilters() {
-    // Lấy kết quả tìm kiếm từ ProductBloc state
     List<ProductModel> baseResults = _searchController.text.isEmpty
         ? []
         : context.read<ProductBloc>().state.searchResults;
 
     List<ProductModel> filtered = List.from(baseResults);
 
-    // Áp dụng tìm kiếm với matching function mới
+    // Áp dụng tìm kiếm
     if (_searchController.text.isNotEmpty) {
-      filtered = filtered.where((product) =>
-          _matchesSearch(product.name, _searchController.text) ||
-          (product.description != null && 
-           _matchesSearch(product.description!, _searchController.text))
-      ).toList();
+      filtered = filtered
+          .where((product) =>
+              _matchesSearch(product.name, _searchController.text) ||
+              (product.description != null &&
+                  _matchesSearch(product.description!, _searchController.text)))
+          .toList();
     }
 
     // Filter by brands
     if (_currentFilter.selectedBrands.isNotEmpty) {
       filtered = filtered.where((product) {
-        return _currentFilter.selectedBrands.contains(product.brand!.brandName);
+        return _currentFilter.selectedBrands.contains(product.brand?.brandName);
       }).toList();
     }
 
@@ -233,9 +262,10 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       }).toList();
     }
 
-    // Filter by stock
+    // ✅ FIX: Filter by stock - Sử dụng logic kiểm tra tồn kho thực tế
     if (_currentFilter.inStockOnly) {
-      filtered = filtered.where((product) => product.isActive == true).toList();
+      filtered =
+          filtered.where((product) => _isProductInStock(product)).toList();
     }
 
     // Apply sorting
@@ -279,16 +309,14 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   }
 
   void _updateFilterData(List<ProductModel> products) {
-    // Extract unique brands
     final brands = products
         .where(
-            (p) => p.brand!.brandName != null && p.brand!.brandName.isNotEmpty)
+            (p) => p.brand?.brandName != null && p.brand!.brandName.isNotEmpty)
         .map((p) => p.brand!.brandName)
         .toSet()
         .toList();
     brands.sort();
 
-    // Calculate price range
     if (products.isNotEmpty) {
       final prices =
           products.map(_getProductPrice).where((p) => p > 0).toList();
@@ -320,7 +348,6 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     setState(() {
       _showSuggestions = false;
     });
-    // Gửi event rỗng để xóa kết quả trong BLoC
     context.read<ProductBloc>().add(SearchProductsEvent(query: ''));
   }
 
@@ -427,7 +454,6 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Filter button
           InkWell(
             onTap: _showFilterModal,
             borderRadius: BorderRadius.circular(20),
@@ -485,15 +511,9 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Sort dropdown
           _buildSortDropdown(),
-
           const Spacer(),
-
-          // Clear filters button
           if (!_currentFilter.isEmpty)
             TextButton(
               onPressed: _clearAllFilters,
@@ -550,34 +570,15 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
         ),
       ),
       itemBuilder: (context) => [
+        const PopupMenuItem(value: SortOption.none, child: Text('Mặc định')),
         const PopupMenuItem(
-          value: SortOption.none,
-          child: Text('Mặc định'),
-        ),
+            value: SortOption.priceAsc, child: Text('Giá thấp đến cao')),
         const PopupMenuItem(
-          value: SortOption.priceAsc,
-          child: Text('Giá thấp đến cao'),
-        ),
-        const PopupMenuItem(
-          value: SortOption.priceDesc,
-          child: Text('Giá cao đến thấp'),
-        ),
-        const PopupMenuItem(
-          value: SortOption.nameAsc,
-          child: Text('Tên A-Z'),
-        ),
-        const PopupMenuItem(
-          value: SortOption.nameDesc,
-          child: Text('Tên Z-A'),
-        ),
-        const PopupMenuItem(
-          value: SortOption.newest,
-          child: Text('Mới nhất'),
-        ),
-        const PopupMenuItem(
-          value: SortOption.oldest,
-          child: Text('Cũ nhất'),
-        ),
+            value: SortOption.priceDesc, child: Text('Giá cao đến thấp')),
+        const PopupMenuItem(value: SortOption.nameAsc, child: Text('Tên A-Z')),
+        const PopupMenuItem(value: SortOption.nameDesc, child: Text('Tên Z-A')),
+        const PopupMenuItem(value: SortOption.newest, child: Text('Mới nhất')),
+        const PopupMenuItem(value: SortOption.oldest, child: Text('Cũ nhất')),
       ],
     );
   }
@@ -621,9 +622,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   Widget _buildSearchResults() {
     return BlocConsumer<ProductBloc, ProductState>(
       listener: (context, state) {
-        // Khi kết quả tìm kiếm từ BLoC thay đổi, áp dụng bộ lọc
         if (state.searchResults.isNotEmpty) {
-          // Cập nhật lại dữ liệu cho bộ lọc (brand, price) từ kết quả tìm kiếm mới
           _updateFilterData(state.searchResults);
         }
         if (!state.isSearching) {
@@ -647,11 +646,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.search_off,
-                  size: 64,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
                 const SizedBox(height: 16),
                 Text(
                   'Không tìm thấy sản phẩm nào',
@@ -672,7 +667,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
         }
 
         if (_searchController.text.isEmpty) {
-          return _buildInitialState(); // Hiển thị màn hình ban đầu
+          return _buildInitialState();
         }
 
         return Column(
@@ -707,11 +702,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.search, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             'Tìm kiếm mọi thứ bạn cần',
@@ -731,9 +722,14 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     );
   }
 
+  // ✅ CẬP NHẬT: Product card với hiển thị tồn kho chính xác
   Widget _buildProductCard(ProductModel product) {
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+
+    // ✅ Sử dụng logic mới để kiểm tra tồn kho
+    final bool inStock = _isProductInStock(product);
+    final int availableStock = _getAvailableStock(product);
 
     return Stack(
       children: [
@@ -748,16 +744,14 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
               Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ProductDetailPage(
-                      product: product,
-                    ),
+                    builder: (context) => ProductDetailPage(product: product),
                   ));
             },
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Product Image Placeholder
+                  // Product Image
                   Container(
                     width: 80,
                     height: 80,
@@ -792,7 +786,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (product.brand!.brandName != null) ...[
+                        if (product.brand?.brandName != null) ...[
                           const SizedBox(height: 2),
                           Text(
                             product.brand!.brandName ?? '',
@@ -819,27 +813,42 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                               ),
                             ),
                             const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: product.isActive == true
-                                    ? Colors.green.withOpacity(0.1)
-                                    : Colors.grey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                product.isActive == true
-                                    ? 'Còn hàng'
-                                    : 'Hết hàng',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: product.isActive == true
-                                      ? Colors.green[700]
-                                      : Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                            // ✅ FIX: Hiển thị trạng thái tồn kho chính xác
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: inStock
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    inStock ? 'Còn hàng' : 'Hết hàng',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: inStock
+                                          ? Colors.green[700]
+                                          : Colors.red[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                // Hiển thị số lượng nếu còn hàng
+                                if (inStock && availableStock > 0) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'SL: $availableStock',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -851,6 +860,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
             ),
           ),
         ),
+        // Discount badge
         if (product.discounts != null &&
             product.discounts!.isNotEmpty &&
             (product.discounts!.first.discountPercentage ?? 0) > 0)
@@ -880,8 +890,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () =>
-          FocusScope.of(context).unfocus(), // Ẩn bàn phím khi chạm ra ngoài
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: Colors.grey[50],
         body: Column(
@@ -912,7 +921,10 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   }
 }
 
-// Filter Bottom Sheet Widget
+// ============================================================================
+// FILTER BOTTOM SHEET WIDGET
+// ============================================================================
+
 class _FilterBottomSheet extends StatefulWidget {
   final ProductFilter currentFilter;
   final List<String> availableBrands;
@@ -1052,7 +1064,6 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      // Apply price range if it's different from default
                       final finalFilter = (_tempPriceRange.start !=
                                   widget.priceRangeLimit.start ||
                               _tempPriceRange.end != widget.priceRangeLimit.end)
@@ -1125,7 +1136,6 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
-    // Đảm bảo divisions > 0
     final divisions =
         (widget.priceRangeLimit.end - widget.priceRangeLimit.start > 0)
             ? 20
@@ -1264,7 +1274,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
             _buildQuickPriceChip('100K - 500K', 100000, 500000),
             _buildQuickPriceChip('500K - 1M', 500000, 1000000),
             _buildQuickPriceChip('1M - 5M', 1000000, 5000000),
-            _buildQuickPriceChip('Trên 5M', 5000000, widget.priceRangeLimit.end),
+            _buildQuickPriceChip(
+                'Trên 5M', 5000000, widget.priceRangeLimit.end),
           ],
         ),
       ],
@@ -1333,7 +1344,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                       value: _tempFilter.inStockOnly,
                       onChanged: (value) {
                         setState(() {
-                          _tempFilter = _tempFilter.copyWith(inStockOnly: value);
+                          _tempFilter =
+                              _tempFilter.copyWith(inStockOnly: value);
                         });
                       },
                       activeColor: Colors.green,

@@ -31,9 +31,14 @@ class _HomePageState extends State<HomePage>
     with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
   Timer? _scrollDebounceTimer;
+
+  // 🔧 FIX: Sử dụng StreamSubscription để track chính xác loading state
+  StreamSubscription<ProductState>? _loadMoreSubscription;
   bool _isLoadingMore = false;
+
   @override
   bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
@@ -53,33 +58,98 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     _scrollController.dispose();
     _scrollDebounceTimer?.cancel();
+    _loadMoreSubscription?.cancel(); // 🔧 FIX: Cancel subscription
     super.dispose();
   }
 
+  // 🔧 FIX: Cải thiện logic cuộn với debounce tốt hơn
   void _onScroll() {
-    if (_scrollDebounceTimer?.isActive ?? false) _scrollDebounceTimer!.cancel();
+    // Cancel timer cũ nếu đang active
+    _scrollDebounceTimer?.cancel();
 
-    _scrollDebounceTimer = Timer(const Duration(milliseconds: 200), () {
-      if (_isBottom && !_isLoadingMore) {
-        final state = context.read<ProductBloc>().state;
-        if (!state.hasReachedMax && !state.isLoading) {
-          setState(() => _isLoadingMore = true);
-          context
-              .read<ProductBloc>()
-              .add(LoadMoreProducts(page: state.currentPage + 1));
-          Future.delayed(const Duration(milliseconds: 400), () {
-            if (mounted) setState(() => _isLoadingMore = false);
-          });
-        }
+    // Tạo timer mới với delay dài hơn
+    _scrollDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      // 🔧 FIX: Kiểm tra đầy đủ các điều kiện
+      if (_shouldLoadMore()) {
+        _loadMoreProducts();
       }
     });
   }
 
+  // 🔧 FIX: Tách logic kiểm tra điều kiện load more
+  bool _shouldLoadMore() {
+    if (!mounted) return false;
+    if (_isLoadingMore) return false;
+    if (!_isBottom) return false;
+
+    final state = context.read<ProductBloc>().state;
+
+    // Kiểm tra đầy đủ các trạng thái
+    if (state.hasReachedMax) return false;
+    if (state.isLoading) return false;
+    if (state.isRefreshing) return false; // 🔧 FIX: Thêm check isRefreshing
+    if (state.products.isEmpty) return false;
+
+    return true;
+  }
+
+  // 🔧 FIX: Kiểm tra vị trí cuộn chính xác hơn
   bool get _isBottom {
     if (!_scrollController.hasClients) return false;
+
     final maxScroll = _scrollController.position.maxScrollExtent;
-    final current = _scrollController.offset;
-    return current >= (maxScroll * 0.9);
+    final currentScroll = _scrollController.offset;
+
+    // 🔧 FIX: Tăng threshold lên 95% để tránh load quá sớm
+    // Và thêm buffer 200px để chắc chắn gần cuối
+    return currentScroll >= (maxScroll * 0.95) &&
+        (maxScroll - currentScroll) < 200;
+  }
+
+  // 🔧 FIX: Load more với tracking state chính xác
+  void _loadMoreProducts() {
+    if (!mounted) return;
+
+    final bloc = context.read<ProductBloc>();
+    final currentPage = bloc.state.currentPage;
+
+    setState(() => _isLoadingMore = true);
+
+    print('📄 Loading page ${currentPage + 1}...');
+
+    // Dispatch event
+    bloc.add(LoadMoreProducts(page: currentPage + 1));
+
+    // 🔧 FIX: Listen state changes để biết khi nào load xong
+    _loadMoreSubscription?.cancel();
+    _loadMoreSubscription = bloc.stream.listen((state) {
+      // Kiểm tra nếu page đã được load
+      if (state.currentPage > currentPage && !state.isLoading) {
+        if (mounted) {
+          setState(() => _isLoadingMore = false);
+          print('✅ Page ${state.currentPage} loaded successfully');
+        }
+        _loadMoreSubscription?.cancel();
+      }
+
+      // Xử lý lỗi
+      if (state.hasError && !state.isLoading) {
+        if (mounted) {
+          setState(() => _isLoadingMore = false);
+          print('❌ Error loading more: ${state.errorMessage}');
+        }
+        _loadMoreSubscription?.cancel();
+      }
+    });
+
+    // 🔧 FIX: Timeout safety - reset sau 10s nếu không có response
+    Future.delayed(const Duration(seconds: 10), () {
+      if (mounted && _isLoadingMore) {
+        setState(() => _isLoadingMore = false);
+        _loadMoreSubscription?.cancel();
+        print('⚠️ Load more timeout after 10s');
+      }
+    });
   }
 
   @override
@@ -124,24 +194,64 @@ class _HomePageState extends State<HomePage>
                     padding: EdgeInsets.symmetric(vertical: 12)),
                 const SliverToBoxAdapter(child: ProductSectionTitle()),
                 ProductGridSection(),
+
+                // 🔧 FIX: Hiển thị loading indicator khi đang load more
                 SliverToBoxAdapter(
                   child: BlocBuilder<ProductBloc, ProductState>(
                     builder: (context, state) {
-                      if (state.hasReachedMax && state.products.isNotEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16),
+                      // Hiển thị loading indicator
+                      if (_isLoadingMore && !state.hasReachedMax) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16),
                           child: Center(
-                            child: Text(
-                              'Đã hiển thị tất cả sản phẩm',
-                              style: TextStyle(
-                                  color: Colors.grey[600], fontSize: 14),
+                            child: Column(
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Đang tải thêm sản phẩm...',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         );
                       }
+
+                      // Hiển thị message khi đã hết sản phẩm
+                      if (state.hasReachedMax && state.products.isNotEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.check_circle_outline,
+                                    color: Colors.grey[400], size: 32),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Đã hiển thị tất cả ${state.products.length} sản phẩm',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
                       return const SizedBox.shrink();
                     },
                   ),
+                ),
+
+                // 🔧 FIX: Thêm padding cuối để dễ scroll
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
                 ),
               ],
             ),
@@ -152,8 +262,13 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _handleRefresh() async {
+    // 🔧 FIX: Reset _isLoadingMore khi refresh
+    setState(() => _isLoadingMore = false);
+    _loadMoreSubscription?.cancel();
+
     final bloc = context.read<ProductBloc>();
     bloc.add(RefreshProducts(page: 1, limit: 20));
+
     await bloc.stream.firstWhere(
       (state) => !state.isRefreshing,
       orElse: () => bloc.state,
@@ -314,7 +429,7 @@ class ProductSectionTitle extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SectionTitle(title: "Danh sách sản phẩm"),
+              const Flexible(child: SectionTitle(title: "Danh sách sản phẩm")),
               if (state.products.isNotEmpty)
                 Row(
                   children: [

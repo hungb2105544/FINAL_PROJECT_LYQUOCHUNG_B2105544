@@ -13,6 +13,7 @@ import 'package:ecommerce_app/features/voucher/presentation/user_voucher_page.da
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -111,7 +112,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         ProfileCard(
                           color: Colors.pinkAccent,
-                          icon: Icons.info,
+                          icon: Icons.emoji_events,
                           title: "Thứ hạng của người dùng",
                           onTap: () => Navigator.push(
                             context,
@@ -127,8 +128,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onTap: () => print("Đi tới chính sách người dùng"),
                         ),
                         ProfileCard(
-                          color: Colors.teal,
-                          icon: Icons.info,
+                          color: Colors.redAccent,
+                          icon: FontAwesomeIcons.heart,
                           title: "San phẩm yêu thích",
                           onTap: () => Navigator.push(
                             context,

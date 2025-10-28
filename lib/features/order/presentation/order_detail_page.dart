@@ -36,15 +36,14 @@ extension OrderItemDisplay on OrderItemModel {
 
 class OrderDetailPage extends StatefulWidget {
   final OrderModel? order;
-  final String? orderId; // ⭐ THÊM MỚI: Nhận orderId từ notification
+  final String? orderId;
 
-  static const route =
-      "/order-detail"; // ⭐ SỬA: Thêm "/" để match với navigation
+  static const route = "/order-detail";
 
   const OrderDetailPage({
     super.key,
     this.order,
-    this.orderId, // ⭐ THÊM MỚI
+    this.orderId,
   });
 
   @override
@@ -54,7 +53,7 @@ class OrderDetailPage extends StatefulWidget {
 class _OrderDetailPageState extends State<OrderDetailPage> {
   OrderModel? _currentOrder;
   bool _isInitialized = false;
-  String? _orderId; // ⭐ THÊM MỚI: Lưu orderId
+  String? _orderId;
 
   @override
   void initState() {
@@ -285,11 +284,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _getStatusLabel(order.status),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        _getStatusLabel(order.status),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
