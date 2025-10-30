@@ -11,6 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_image_compress: ^2.1.0
+  path: ^1.8.3
   loading_animation_widget: ^1.2.0
   googleapis_auth: ^1.6.0
   cached_network_image: ^3.3.1

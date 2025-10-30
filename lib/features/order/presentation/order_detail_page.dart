@@ -1,8 +1,11 @@
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/bloc/order_event.dart';
 import 'package:ecommerce_app/features/order/bloc/order_state.dart';
+import 'package:ecommerce_app/features/order/bloc/rating_bloc/rating_bloc.dart';
+import 'package:ecommerce_app/features/order/bloc/rating_bloc/rating_event.dart';
 import 'package:ecommerce_app/features/order/data/model/order_model.dart';
 import 'package:ecommerce_app/features/order/data/model/order_item_model.dart';
+import 'package:ecommerce_app/features/order/presentation/submit_rating_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -29,6 +32,15 @@ extension OrderItemDisplay on OrderItemModel {
     if (variant != null) {
       if (variant!['sku'] != null) return "SKU: ${variant!['sku']}";
       if (variant!['color'] != null) return "Màu: ${variant!['color']}";
+    }
+    return null;
+  }
+
+  int? get productId {
+    if (product != null && product!['id'] != null) {
+      return product!['id'] is int
+          ? product!['id']
+          : int.tryParse(product!['id'].toString());
     }
     return null;
   }
@@ -76,11 +88,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   void _initializeOrder() {
     print('🔄 [OrderDetailPage] _initializeOrder');
 
-    // ⭐ CẬP NHẬT: Xử lý các trường hợp khác nhau
-
-    // 1. Ưu tiên: Order object truyền trực tiếp
     if (widget.order != null) {
-      print('✅ Using order from widget');
       setState(() {
         _currentOrder = widget.order;
         _orderId = widget.order!.id.toString();
@@ -88,9 +96,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       return;
     }
 
-    // 2. OrderId từ constructor (từ notification)
     if (widget.orderId != null && widget.orderId!.isNotEmpty) {
-      print('✅ Using orderId from widget: ${widget.orderId}');
       setState(() {
         _orderId = widget.orderId;
       });
@@ -100,18 +106,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       return;
     }
 
-    // 3. Lấy từ route arguments
     final args = ModalRoute.of(context)?.settings.arguments;
-    print('📋 Route arguments type: ${args.runtimeType}');
-    print('📋 Route arguments value: $args');
 
     if (args is Map<String, dynamic>) {
       final orderId = args['order_id'];
-      print('📋 order_id from map: $orderId (${orderId.runtimeType})');
-
       if (orderId != null) {
         final orderIdStr = orderId.toString();
-        print('✅ Loading order by ID: $orderIdStr');
         setState(() {
           _orderId = orderIdStr;
         });
@@ -121,7 +121,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return;
       }
     } else if (args is String) {
-      print('✅ Loading order by string ID: $args');
       setState(() {
         _orderId = args;
       });
@@ -130,15 +129,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           );
       return;
     } else if (args is OrderModel) {
-      print('✅ Using OrderModel from arguments');
       setState(() {
         _currentOrder = args;
         _orderId = args.id.toString();
       });
       return;
     }
-
-    print('⚠️ No order data found');
   }
 
   @override
@@ -156,17 +152,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       body: BlocConsumer<OrderPaymentBloc, OrderPaymentState>(
         listener: (context, state) {
           if (state is OrderLoaded) {
-            print('✅ [OrderDetailPage] Order loaded: ${state.order.id}');
             setState(() {
               _currentOrder = state.order;
               _orderId = state.order.id.toString();
             });
-          } else if (state is OrderPaymentError) {
-            print('❌ [OrderDetailPage] Error: ${state.message}');
           }
         },
         builder: (context, state) {
-          // Hiển thị loading khi đang tải dữ liệu
           if (_currentOrder == null && state is OrderPaymentLoading) {
             return const Center(
               child: Column(
@@ -180,27 +172,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             );
           }
 
-          // Hiển thị lỗi nếu có
           if (state is OrderPaymentError) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      state.message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(state.message),
+                  SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
                       if (_orderId != null) {
-                        print('🔄 Retrying to load order: $_orderId');
                         context.read<OrderPaymentBloc>().add(
                               GetOrderById(orderId: _orderId!),
                             );
@@ -208,54 +191,35 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     },
                     child: const Text('Thử lại'),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Quay lại'),
-                  ),
                 ],
               ),
             );
           }
 
-          // Kiểm tra nếu không có order
           if (_currentOrder == null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Không tìm thấy thông tin đơn hàng',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Quay lại'),
-                  ),
-                ],
-              ),
+            return const Center(
+              child: Text('Không tìm thấy thông tin đơn hàng'),
             );
           }
 
-          // Hiển thị nội dung đơn hàng
           final order = _currentOrder!;
           return SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildStatusSection(order),
-                const SizedBox(height: 8),
-                _buildProductsSection(order),
-                const SizedBox(height: 8),
-                _buildPriceSection(order),
-                const SizedBox(height: 8),
-                _buildPaymentSection(order),
-                const SizedBox(height: 8),
-                if (order.notes != null) _buildNotesSection(order),
-                const SizedBox(height: 80),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 80),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatusSection(order),
+                  const SizedBox(height: 8),
+                  _buildProductsSection(order),
+                  const SizedBox(height: 8),
+                  _buildPriceSection(order),
+                  const SizedBox(height: 8),
+                  _buildPaymentSection(order),
+                  const SizedBox(height: 8),
+                  if (order.notes != null) _buildNotesSection(order),
+                ],
+              ),
             ),
           );
         },
@@ -266,57 +230,32 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  // ===================== WIDGETS =====================
-
   Widget _buildStatusSection(OrderModel order) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(_getStatusIcon(order.status),
-                  color: _getStatusColor(order.status)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        _getStatusLabel(order.status),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Cập nhật: ${_formatDate(order.updatedAt)}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (order.estimatedDeliveryDate != null) ...[
-            const Divider(height: 24),
-            Row(
+          Icon(_getStatusIcon(order.status),
+              color: _getStatusColor(order.status)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.local_shipping_outlined,
-                    size: 20, color: Colors.grey[600]),
-                const SizedBox(width: 8),
                 Text(
-                  'Dự kiến giao: ${_formatDate(order.estimatedDeliveryDate!)}',
-                  style: TextStyle(color: Colors.grey[700]),
+                  _getStatusLabel(order.status),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Cập nhật: ${order.updatedAt}',
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -329,95 +268,142 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Sản phẩm đã đặt',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text('Sản phẩm đã đặt',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           ...order.listOrderItem
-              .map((item) => _buildProductItem(item))
+              .map((item) => _buildProductItem(item, order))
               .toList(),
         ],
       ),
     );
   }
 
-  Widget _buildProductItem(OrderItemModel item) {
+  Widget _buildProductItem(OrderItemModel item, OrderModel order) {
+    final canReview = order.status == 'delivered' && (item.canReview ?? false);
+    final userId = order.userId;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: item.displayImage != null
-                ? Image.network(
-                    item.displayImage!,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stack) {
-                      return Container(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: item.displayImage != null
+                    ? Image.network(
+                        item.displayImage!,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => Container(
+                            width: 80, height: 80, color: Colors.grey[200]),
+                      )
+                    : Container(
                         width: 80,
                         height: 80,
                         color: Colors.grey[200],
                         child: Icon(Icons.image,
                             color: Colors.grey[400], size: 40),
-                      );
-                    },
-                  )
-                : Container(
-                    width: 80,
-                    height: 80,
-                    color: Colors.grey[200],
-                    child: Icon(Icons.image, color: Colors.grey[400], size: 40),
-                  ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.displayName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (item.displayVariant != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    item.displayVariant!,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _formatCurrency(item.unitPrice),
+                      item.displayName,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                      ),
+                          fontSize: 15, fontWeight: FontWeight.w500),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      'x${item.quantity}',
-                      style: TextStyle(color: Colors.grey[600]),
+                    if (item.displayVariant != null)
+                      Text(item.displayVariant!,
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatCurrency(item.unitPrice),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                        Text('x${item.quantity}',
+                            style: TextStyle(color: Colors.grey[600])),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (canReview && item.productId != null && userId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: OutlinedButton.icon(
+                onPressed: () => _navigateToRating(context, item, userId),
+                icon: const Icon(Icons.star_outline, size: 18),
+                label: const Text('Đánh giá sản phẩm'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  side: const BorderSide(color: Colors.orange),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  void _navigateToRating(
+      BuildContext context, OrderItemModel item, String userId) async {
+    if (item.productId == null) return;
+
+    context.read<RatingBloc>().add(CheckReviewEligibility(
+          userId: userId,
+          productId: item.productId!,
+          orderItemId: item.id,
+        ));
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BlocProvider.value(
+          value: context.read<RatingBloc>(),
+          child: SubmitRatingPage(
+            productId: item.productId!,
+            orderItemId: item.id,
+            userId: userId,
+            productName: item.displayName,
+            productImage: item.displayImage,
+          ),
+        ),
+      ),
+    );
+
+    if (result == true && mounted && _orderId != null) {
+      context.read<OrderPaymentBloc>().add(GetOrderById(orderId: _orderId!));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cảm ơn bạn đã đánh giá sản phẩm!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   Widget _buildPriceSection(OrderModel order) {
@@ -427,49 +413,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         children: [
           _buildPriceRow('Tạm tính', order.subtotal),
-          const SizedBox(height: 8),
           _buildPriceRow('Giảm giá', -order.discountAmount,
               color: Colors.green),
-          const SizedBox(height: 8),
           _buildPriceRow('Phí vận chuyển', order.shippingFee),
-          const SizedBox(height: 8),
           _buildPriceRow('Thuế', order.taxAmount),
-          const Divider(height: 24),
+          const Divider(),
           _buildPriceRow('Tổng cộng', order.total, isTotal: true),
-          if (order.pointsUsed > 0) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Điểm đã sử dụng',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  '-${order.pointsUsed} điểm',
-                  style: const TextStyle(
-                      color: Colors.orange, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ],
-          if (order.pointsEarned > 0) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Điểm tích lũy',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  '+${order.pointsEarned} điểm',
-                  style: const TextStyle(
-                      color: Colors.green, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -480,21 +429,16 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: isTotal ? 16 : 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? Colors.black : Colors.grey[700],
-          ),
-        ),
+        Text(label,
+            style: TextStyle(
+                fontSize: isTotal ? 16 : 14,
+                fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
         Text(
           _formatCurrency(amount),
           style: TextStyle(
-            fontSize: isTotal ? 18 : 15,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-            color: color ?? (isTotal ? Colors.red : Colors.black),
-          ),
+              fontSize: isTotal ? 18 : 15,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+              color: color ?? (isTotal ? Colors.red : Colors.black)),
         ),
       ],
     );
@@ -507,25 +451,15 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Thông tin thanh toán',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
+          const Text('Thông tin thanh toán',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
           _buildInfoRow(Icons.payment, 'Phương thức',
               order.paymentMethod ?? 'Chưa cập nhật'),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.verified,
-            'Trạng thái',
-            _getPaymentStatusLabel(order.paymentStatus),
-            valueColor: _getPaymentStatusColor(order.paymentStatus),
-          ),
-          if (order.paymentReference != null) ...[
-            const SizedBox(height: 12),
-            _buildInfoRow(
-                Icons.receipt_long, 'Mã giao dịch', order.paymentReference!),
-          ],
+          const SizedBox(height: 8),
+          _buildInfoRow(Icons.verified, 'Trạng thái',
+              _getPaymentStatusLabel(order.paymentStatus),
+              valueColor: _getPaymentStatusColor(order.paymentStatus)),
         ],
       ),
     );
@@ -538,15 +472,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Ghi chú',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            order.notes!,
-            style: TextStyle(color: Colors.grey[700]),
-          ),
+          const Text('Ghi chú',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(order.notes!, style: TextStyle(color: Colors.grey[700])),
         ],
       ),
     );
@@ -557,20 +486,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return Row(
       children: [
         Icon(icon, size: 20, color: Colors.grey[600]),
-        const SizedBox(width: 12),
-        Text(
-          '$label: ',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
+        const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              color: valueColor,
-            ),
-            textAlign: TextAlign.right,
-          ),
+          child: Text('$label: $value',
+              style: TextStyle(color: valueColor ?? Colors.black)),
         ),
       ],
     );
@@ -583,21 +502,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5)),
         ],
       ),
       child: SafeArea(
         child: Row(
           children: [
-            if (order.status == 'pending') ...[
+            if (order.status == 'pending')
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {
-                    _showCancelDialog(context, order);
-                  },
+                  onPressed: () => _showCancelDialog(context, order),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Colors.red),
@@ -606,8 +522,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       style: TextStyle(color: Colors.red)),
                 ),
               ),
-              const SizedBox(width: 12),
-            ],
           ],
         ),
       ),
@@ -643,7 +557,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  // ===================== HELPER METHODS =====================
+  // ===== Helper methods =====
 
   IconData _getStatusIcon(String status) {
     switch (status) {
@@ -669,7 +583,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       case 'pending':
         return Colors.orange;
       case 'confirmed':
-        return Colors.blue;
       case 'processing':
         return Colors.blue;
       case 'shipping':
@@ -710,34 +623,34 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return 'Đã thanh toán';
       case 'failed':
         return 'Thanh toán thất bại';
+      case 'refunded':
+        return 'Đã hoàn tiền';
       default:
-        return status;
+        return 'Không xác định';
     }
   }
 
   Color _getPaymentStatusColor(String status) {
     switch (status) {
-      case 'pending':
-        return Colors.orange;
       case 'paid':
         return Colors.green;
+      case 'pending':
+        return Colors.orange;
       case 'failed':
+      case 'refunded':
         return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateFormat('dd/MM/yyyy HH:mm').format(date);
-    } catch (e) {
-      return dateStr;
-    }
+  String _formatDate(DateTime date) {
+    return DateFormat('dd/MM/yyyy HH:mm').format(date);
   }
 
-  String _formatCurrency(double amount) {
-    return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(amount);
+  String _formatCurrency(double? amount) {
+    if (amount == null) return '0₫';
+    final format = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
+    return format.format(amount);
   }
 }

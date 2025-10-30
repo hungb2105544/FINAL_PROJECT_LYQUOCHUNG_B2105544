@@ -8,7 +8,10 @@ import 'package:ecommerce_app/core/theme/theme_app.dart';
 import 'package:ecommerce_app/features/cart/bloc/cart_bloc.dart';
 import 'package:ecommerce_app/features/cart/data/repositories/cart_repositories.impl.dart';
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
+import 'package:ecommerce_app/features/order/bloc/rating_bloc/rating_bloc.dart';
 import 'package:ecommerce_app/features/order/data/repositories/order_repository_impl.dart';
+import 'package:ecommerce_app/features/order/data/repositories/rating_repository_impl.dart';
+import 'package:ecommerce_app/features/order/domain/repositories/rating_repository.dart';
 import 'package:ecommerce_app/features/order/presentation/order_detail_page.dart';
 import 'package:ecommerce_app/features/product/bloc/brand_bloc/brand_bloc.dart';
 import 'package:ecommerce_app/features/product/bloc/favorite_bloc/favorite_bloc.dart';
@@ -92,6 +95,14 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        Provider<RatingRepository>(
+          create: (context) => RatingRepositoryImpl(),
+        ),
+        BlocProvider(
+          create: (context) => RatingBloc(
+            repository: RatingRepositoryImpl(),
+          ),
+        ),
         Provider<ProductTypeRepository>(
           create: (context) => ProductTypeRepositoryImpl(),
         ),
