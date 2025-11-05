@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ecommerce_app/service/dialogflow_service.dart';
-import 'dart:convert';
 import 'package:ecommerce_app/features/product/data/models/product_model.dart';
 import 'package:ecommerce_app/features/product/presentation/product_detail_page.dart';
 
@@ -49,8 +48,8 @@ class _ChatPageState extends State<ChatPage> {
           _messages.add(ChatMessage(
             isUser: false,
             text: reply['text'],
-            products: List<Map<String, dynamic>>.from(
-                reply['object']['products']['products']),
+            products:
+                List<Map<String, dynamic>>.from(reply['object']['products']),
             timestamp: DateTime.now(),
           ));
         } else {
@@ -304,45 +303,67 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  Map<String, dynamic> _simplifyProductForDisplay(
+      Map<String, dynamic> product) {
+    final processedProduct = Map<String, dynamic>.from(product);
+
+    if (processedProduct['product_variants'] != null) {
+      final variants = processedProduct['product_variants'] as List;
+      final Map<String, Map<String, dynamic>> colorMap = {};
+
+      for (final variant in variants) {
+        final String? color = variant['color'];
+        final int? variantId = variant['id'];
+
+        if (variantId != null &&
+            color != null &&
+            !colorMap.containsKey(color)) {
+          String? imageUrl;
+          final images = variant['product_variant_images'];
+          if (images is List && images.isNotEmpty) {
+            imageUrl = images.first['image_url'];
+          }
+
+          colorMap[color] = {
+            'id': variantId,
+            'color': color,
+            'image_url': imageUrl,
+          };
+        }
+      }
+
+      processedProduct['product_variants'] = colorMap.values.toList();
+
+      debugPrint('🎨 Simplified ${colorMap.length} color variants');
+    }
+
+    return processedProduct;
+  }
+
   Widget _buildProductCard(Map<String, dynamic> product) {
     final name = product['name'] ?? 'Sản phẩm';
     final price = product['final_price'] ?? product['price'] ?? 0;
-    final img = product['image_urls'][0] ?? '';
-    Map<String, dynamic> _simplifyProductForDisplay(
-        Map<String, dynamic> product) {
-      final processedProduct = Map<String, dynamic>.from(product);
 
-      if (processedProduct['product_variants'] != null) {
-        final variants = processedProduct['product_variants'] as List;
-        final Map<String, Map<String, dynamic>> colorMap = {};
+    // ✅ XỬ LÝ IMAGE_URLS AN TOÀN - FIXED
+    String img = '';
+    try {
+      if (product['image_urls'] != null) {
+        final imageUrls = product['image_urls'];
 
-        for (final variant in variants) {
-          final String? color = variant['color'];
-          final int? variantId = variant['id'];
-
-          if (variantId != null &&
-              color != null &&
-              !colorMap.containsKey(color)) {
-            String? imageUrl;
-            final images = variant['product_variant_images'];
-            if (images is List && images.isNotEmpty) {
-              imageUrl = images.first['image_url'];
-            }
-
-            colorMap[color] = {
-              'id': variantId,
-              'color': color,
-              'image_url': imageUrl,
-            };
-          }
+        if (imageUrls is List && imageUrls.isNotEmpty) {
+          // Nếu là List, lấy phần tử đầu tiên
+          img = imageUrls[0]?.toString() ?? '';
+        } else if (imageUrls is Map && imageUrls.isNotEmpty) {
+          // Nếu là Map, lấy giá trị đầu tiên
+          img = imageUrls.values.first?.toString() ?? '';
+        } else if (imageUrls is String) {
+          // Nếu là String trực tiếp
+          img = imageUrls;
         }
-
-        processedProduct['product_variants'] = colorMap.values.toList();
-
-        debugPrint('🎨 Simplified ${colorMap.length} color variants');
       }
-
-      return processedProduct;
+    } catch (e) {
+      debugPrint('⚠️ Không thể lấy image URL: $e');
+      debugPrint('📦 Product data: $product');
     }
 
     return GestureDetector(

@@ -1,6 +1,9 @@
 import 'package:ecommerce_app/features/address/data/model/user_address_model.dart';
 import 'dart:convert';
 import 'package:ecommerce_app/features/address/presentation/address_selection_page.dart';
+import 'package:ecommerce_app/features/address/bloc/address_bloc.dart';
+import 'package:ecommerce_app/features/address/bloc/address_event.dart';
+import 'package:ecommerce_app/features/address/bloc/address_state.dart';
 import 'package:ecommerce_app/features/cart/data/model/cart_item_model.dart';
 import 'package:ecommerce_app/features/order/bloc/order_bloc.dart';
 import 'package:ecommerce_app/features/order/bloc/order_event.dart';
@@ -28,6 +31,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   VoucherModel? _selectectedVoucher;
   String _selectedPaymentMethod = 'cod';
   bool _isProcessing = false;
+  bool _isLoadingAddress = true; // Thêm flag để track loading
 
   static const double _vatRate = 0.08;
 
@@ -51,6 +55,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   void initState() {
     super.initState();
+    _loadDefaultAddress();
+  }
+
+  // Thêm method để load địa chỉ mặc định
+  void _loadDefaultAddress() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      context.read<AddressBloc>().add(LoadAddress(userId: userId));
+    }
   }
 
   @override
@@ -60,90 +73,128 @@ class _CheckoutPageState extends State<CheckoutPage> {
         .convert(widget.listproduct.map((item) => item.toMap()).toList());
     print('🛒 Danh sách sản phẩm trong CheckOut Page (JSON):\n$prettyJson');
 
-    return BlocListener<OrderPaymentBloc, OrderPaymentState>(
-      listener: (context, state) {
-        if (state is OrderCreatedSuccess) {
-          setState(() => _isProcessing = false);
+    return MultiBlocListener(
+      listeners: [
+        // Listener cho AddressBloc để tự động chọn địa chỉ mặc định
+        BlocListener<AddressBloc, AddressState>(
+          listener: (context, state) {
+            if (state is AddressLoaded || state is AddressOperationSuccess) {
+              List<UserAddressModel> addresses = [];
 
-          // Nếu là COD, chuyển đến trang thành công
-          if (_selectedPaymentMethod == 'cod') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OrderSuccessPage(
-                  order: state.order,
-                  paymentMethod: _selectedPaymentMethod,
-                ),
-              ),
-            );
-          }
-          // Nếu là bank transfer, chuyển đến trang xác nhận thanh toán
-          else if (_selectedPaymentMethod == 'bank_transfer') {
-            print("Dữ liệu từ trang CheckOut : ");
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ConfirmCheckOutPage(
-                  order: state.order,
-                  totalOrder: state.order.total.toStringAsFixed(0),
-                ),
-              ),
-            );
-          }
-        } else if (state is OrderPaymentError) {
-          setState(() => _isProcessing = false);
+              if (state is AddressLoaded) {
+                addresses = state.userAddresses;
+              } else if (state is AddressOperationSuccess) {
+                addresses = state.userAddresses;
+              }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
+              // Tìm và chọn địa chỉ mặc định
+              if (_selectedAddress == null && addresses.isNotEmpty) {
+                final defaultAddress = addresses.firstWhere(
+                  (addr) => addr.isDefault == true,
+                  orElse: () => addresses
+                      .first, // Nếu không có default, chọn địa chỉ đầu tiên
+                );
+
+                setState(() {
+                  _selectedAddress = defaultAddress;
+                  _isLoadingAddress = false;
+                });
+              }
+            } else if (state is AddressError || state is NoAddressFound) {
+              setState(() {
+                _isLoadingAddress = false;
+              });
+            }
+          },
+        ),
+        // Listener cho OrderPaymentBloc
+        BlocListener<OrderPaymentBloc, OrderPaymentState>(
+          listener: (context, state) {
+            if (state is OrderCreatedSuccess) {
+              setState(() => _isProcessing = false);
+
+              if (_selectedPaymentMethod == 'cod') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OrderSuccessPage(
+                      order: state.order,
+                      paymentMethod: _selectedPaymentMethod,
+                    ),
+                  ),
+                );
+              } else if (_selectedPaymentMethod == 'bank_transfer') {
+                print("Dữ liệu từ trang CheckOut : ");
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ConfirmCheckOutPage(
+                      order: state.order,
+                      totalOrder: state.order.total.toStringAsFixed(0),
+                    ),
+                  ),
+                );
+              }
+            } else if (state is OrderPaymentError) {
+              setState(() => _isProcessing = false);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(
           title: const Text("Thanh toán"),
           elevation: 0,
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle("📍 Địa chỉ giao hàng"),
-                        const SizedBox(height: 8),
-                        _buildAddressSection(),
-                        const SizedBox(height: 20),
-                        _buildSectionTitle("📦 Danh sách sản phẩm"),
-                        const SizedBox(height: 8),
-                        _buildProductList(),
-                        const SizedBox(height: 20),
-                        _buildSectionTitle("💳 Phương thức thanh toán"),
-                        const SizedBox(height: 8),
-                        _buildPaymentMethodSection(),
-                        const SizedBox(height: 20),
-                        _buildSectionTitle("🎫 Voucher"),
-                        const SizedBox(height: 8),
-                        _buildVoucherSection(),
-                        const SizedBox(height: 20),
-                        _buildSectionTitle("📋 Tóm tắt đơn hàng"),
-                        const SizedBox(height: 8),
-                        _buildOrderSummary(),
-                      ],
+        body: _isLoadingAddress
+            ? const Center(
+                child: CircularProgressIndicator(),
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSectionTitle("📍 Địa chỉ giao hàng"),
+                              const SizedBox(height: 8),
+                              _buildAddressSection(),
+                              const SizedBox(height: 20),
+                              _buildSectionTitle("📦 Danh sách sản phẩm"),
+                              const SizedBox(height: 8),
+                              _buildProductList(),
+                              const SizedBox(height: 20),
+                              _buildSectionTitle("💳 Phương thức thanh toán"),
+                              const SizedBox(height: 8),
+                              _buildPaymentMethodSection(),
+                              const SizedBox(height: 20),
+                              _buildSectionTitle("🎫 Voucher"),
+                              const SizedBox(height: 8),
+                              _buildVoucherSection(),
+                              const SizedBox(height: 20),
+                              _buildSectionTitle("📋 Tóm tắt đơn hàng"),
+                              const SizedBox(height: 8),
+                              _buildOrderSummary(),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  _buildBottomBar(),
+                ],
               ),
-            ),
-            _buildBottomBar(),
-          ],
-        ),
       ),
     );
   }
@@ -637,7 +688,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final UserAddressModel? selectedAddress =
         await Navigator.push<UserAddressModel>(
       context,
-      MaterialPageRoute(builder: (context) => AddressSelectionPage()),
+      MaterialPageRoute(builder: (context) => const AddressSelectionPage()),
     );
 
     if (selectedAddress != null) {
@@ -648,7 +699,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _navigateToVoucherSelection() async {
     final VoucherModel? selectectedVoucher = await Navigator.push<VoucherModel>(
       context,
-      MaterialPageRoute(builder: (context) => VoucherSelectionPage()),
+      MaterialPageRoute(builder: (context) => const VoucherSelectionPage()),
     );
 
     if (selectectedVoucher != null) {
