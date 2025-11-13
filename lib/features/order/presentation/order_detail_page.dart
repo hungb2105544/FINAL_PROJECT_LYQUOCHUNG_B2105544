@@ -573,6 +573,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return Icons.verified;
       case 'cancelled':
         return Icons.cancel_outlined;
+      case 'refunded':
+        return Icons.receipt_long; // Icon for refunded status
       default:
         return Icons.info_outline;
     }
@@ -591,6 +593,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return Colors.green;
       case 'cancelled':
         return Colors.red;
+      case 'refunded':
+        return Colors.blueGrey; // Color for refunded status
       default:
         return Colors.grey;
     }
@@ -610,6 +614,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return 'Đã giao hàng';
       case 'cancelled':
         return 'Đã hủy';
+      case 'refunded':
+        return 'Đã hoàn tiền';
       default:
         return status;
     }

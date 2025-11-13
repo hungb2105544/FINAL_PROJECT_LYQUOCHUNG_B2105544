@@ -91,3 +91,18 @@ class SearchProductsEvent extends ProductEvent {
   @override
   List<Object> get props => [query];
 }
+
+class LoadProductsServerFirst extends ProductEvent {
+  final int page;
+  final int limit;
+  final bool useCacheFallback;
+
+  LoadProductsServerFirst({
+    this.page = 1,
+    this.limit = 20,
+    this.useCacheFallback = true,
+  });
+
+  @override
+  List<Object?> get props => [page, limit, useCacheFallback];
+}

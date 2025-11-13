@@ -10,6 +10,7 @@ import 'package:ecommerce_app/features/order/bloc/order_event.dart';
 import 'package:ecommerce_app/features/order/bloc/order_state.dart';
 import 'package:ecommerce_app/features/order/data/model/order_model.dart';
 import 'package:ecommerce_app/features/order/data/model/order_item_model.dart';
+import 'package:ecommerce_app/features/order/widget/point_redemption.dart';
 import 'package:ecommerce_app/features/product/presentation/confirm_check_out.dart';
 import 'package:ecommerce_app/features/product/presentation/order_success_page.dart';
 import 'package:ecommerce_app/features/voucher/data/model/voucher_model.dart';
@@ -31,9 +32,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   VoucherModel? _selectectedVoucher;
   String _selectedPaymentMethod = 'cod';
   bool _isProcessing = false;
-  bool _isLoadingAddress = true; // Thêm flag để track loading
-
+  bool _isLoadingAddress = true;
+  bool _isLoadingPoints = true;
   static const double _vatRate = 0.08;
+  int _availablePoints = 0;
+  int _pointsUsed = 0;
+  double _pointsDiscount = 0.0;
 
   final List<Map<String, dynamic>> _paymentMethods = [
     {
@@ -56,9 +60,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   void initState() {
     super.initState();
     _loadDefaultAddress();
+    _loadUserPoints();
   }
 
-  // Thêm method để load địa chỉ mặc định
   void _loadDefaultAddress() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
@@ -66,35 +70,57 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
+  void _loadUserPoints() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      Supabase.instance.client
+          .from('user_ranks')
+          .select('current_points')
+          .eq('user_id', userId)
+          .single()
+          .then((response) {
+        setState(() {
+          print('Điểm tích lũy hiện tại: ${response}');
+          _availablePoints = response['current_points'] ?? 0;
+          _isLoadingPoints = false;
+        });
+      }).catchError((error) {
+        setState(() => _isLoadingPoints = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể tải điểm tích lũy: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      });
+    } else {
+      setState(() => _isLoadingPoints = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const encoder = JsonEncoder.withIndent('  ');
+    const encoder = JsonEncoder.withIndent(' ');
     final prettyJson = encoder
         .convert(widget.listproduct.map((item) => item.toMap()).toList());
     print('🛒 Danh sách sản phẩm trong CheckOut Page (JSON):\n$prettyJson');
 
     return MultiBlocListener(
       listeners: [
-        // Listener cho AddressBloc để tự động chọn địa chỉ mặc định
         BlocListener<AddressBloc, AddressState>(
           listener: (context, state) {
             if (state is AddressLoaded || state is AddressOperationSuccess) {
               List<UserAddressModel> addresses = [];
-
               if (state is AddressLoaded) {
                 addresses = state.userAddresses;
               } else if (state is AddressOperationSuccess) {
                 addresses = state.userAddresses;
               }
-
-              // Tìm và chọn địa chỉ mặc định
               if (_selectedAddress == null && addresses.isNotEmpty) {
                 final defaultAddress = addresses.firstWhere(
                   (addr) => addr.isDefault == true,
-                  orElse: () => addresses
-                      .first, // Nếu không có default, chọn địa chỉ đầu tiên
+                  orElse: () => addresses.first,
                 );
-
                 setState(() {
                   _selectedAddress = defaultAddress;
                   _isLoadingAddress = false;
@@ -107,12 +133,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
             }
           },
         ),
-        // Listener cho OrderPaymentBloc
         BlocListener<OrderPaymentBloc, OrderPaymentState>(
           listener: (context, state) {
             if (state is OrderCreatedSuccess) {
               setState(() => _isProcessing = false);
-
+              if (_pointsUsed > 0) {
+                final userId = Supabase.instance.client.auth.currentUser?.id;
+                if (userId != null) {
+                  Supabase.instance.client
+                      .from('user_points')
+                      .update({'points': _availablePoints - _pointsUsed})
+                      .eq('user_id', userId)
+                      .then((_) {
+                        setState(() {
+                          _availablePoints -= _pointsUsed;
+                          _pointsUsed = 0;
+                          _pointsDiscount = 0.0;
+                        });
+                      })
+                      .catchError((error) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Lỗi khi cập nhật điểm: $error'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      });
+                }
+              }
               if (_selectedPaymentMethod == 'cod') {
                 Navigator.pushReplacement(
                   context,
@@ -137,7 +185,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
               }
             } else if (state is OrderPaymentError) {
               setState(() => _isProcessing = false);
-
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(state.message),
@@ -153,10 +200,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           title: const Text("Thanh toán"),
           elevation: 0,
         ),
-        body: _isLoadingAddress
-            ? const Center(
-                child: CircularProgressIndicator(),
-              )
+        body: _isLoadingAddress || _isLoadingPoints
+            ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
                   Expanded(
@@ -182,6 +227,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               _buildSectionTitle("🎫 Voucher"),
                               const SizedBox(height: 8),
                               _buildVoucherSection(),
+                              const SizedBox(height: 20),
+                              _buildSectionTitle("🌟 Sử dụng điểm tích lũy"),
+                              const SizedBox(height: 8),
+                              PointsUsageWidget(
+                                availablePoints: _availablePoints,
+                                orderTotal: _calculateSubtotal(),
+                                pointsToMoneyRatio: 100,
+                                onPointsChanged: (pointsUsed, discountAmount) {
+                                  setState(() {
+                                    _pointsUsed = pointsUsed;
+                                    _pointsDiscount = discountAmount;
+                                  });
+                                },
+                              ),
                               const SizedBox(height: 20),
                               _buildSectionTitle("📋 Tóm tắt đơn hàng"),
                               const SizedBox(height: 8),
@@ -575,6 +634,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 "-${_formatCurrency(_calculateDiscount())}",
                 valueColor: Colors.green),
           ],
+          if (_pointsUsed > 0) ...[
+            const SizedBox(height: 8),
+            _buildSummaryRow("Giảm giá từ điểm ($_pointsUsed điểm)",
+                "-${_formatCurrency(_pointsDiscount)}",
+                valueColor: Colors.orange),
+          ],
           const SizedBox(height: 8),
           _buildSummaryRow("Tạm tính", _formatCurrency(_calculateSubtotal())),
           const SizedBox(height: 8),
@@ -682,15 +747,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // === HELPER METHODS ===
-
   Future<void> _navigateToAddressSelection() async {
     final UserAddressModel? selectedAddress =
         await Navigator.push<UserAddressModel>(
       context,
       MaterialPageRoute(builder: (context) => const AddressSelectionPage()),
     );
-
     if (selectedAddress != null) {
       setState(() => _selectedAddress = selectedAddress);
     }
@@ -701,7 +763,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       context,
       MaterialPageRoute(builder: (context) => const VoucherSelectionPage()),
     );
-
     if (selectectedVoucher != null) {
       setState(() => _selectectedVoucher = selectectedVoucher);
     }
@@ -722,9 +783,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   double _calculateDiscount() {
     if (_selectectedVoucher == null || !_isVoucherValid()) return 0.0;
-
     final totalProductValue = _calculateTotalProductValue();
-
     if (_selectectedVoucher!.type == "percentage") {
       final discount = totalProductValue * (_selectectedVoucher!.value / 100);
       final maxDiscountAmount = _selectectedVoucher!.maxDiscountAmount != null
@@ -732,7 +791,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   _selectectedVoucher!.maxDiscountAmount.toString()) ??
               0.0
           : double.infinity;
-
       if (maxDiscountAmount < double.infinity) {
         return discount > maxDiscountAmount ? maxDiscountAmount : discount;
       }
@@ -743,7 +801,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? totalProductValue
           : discountAmount;
     }
-
     return 0.0;
   }
 
@@ -759,7 +816,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   double _calculateSubtotal() {
     return _calculateTotalProductValue() +
         _calculateShippingFee() -
-        _calculateDiscount();
+        _calculateDiscount() -
+        _pointsDiscount;
   }
 
   double _calculateVAT() {
@@ -773,7 +831,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   String _getVoucherDisplayText() {
     if (_selectectedVoucher == null) return "";
-
     switch (_selectectedVoucher!.type) {
       case "percentage":
         final maxDiscount = _selectectedVoucher!.maxDiscountAmount != null
@@ -803,14 +860,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   OrderModel _createOrderModel(String orderNumber) {
     final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-    print("Giảm giá" + _calculateDiscount().toString());
     return OrderModel(
       id: 0,
       orderNumber: orderNumber,
       userId: userId,
       userAddressId: _selectedAddress?.id,
       subtotal: _calculateTotalProductValue(),
-      discountAmount: _calculateDiscount(),
+      discountAmount: _calculateDiscount() + _pointsDiscount,
       shippingFee: _calculateShippingFee(),
       taxAmount: _calculateVAT(),
       total: _calculateTotal(),
@@ -818,7 +874,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? int.tryParse(_selectectedVoucher!.id.toString())
           : null,
       pointsEarned: (_calculateTotal() / 1000).floor(),
-      pointsUsed: 0,
+      pointsUsed: _pointsUsed,
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: _selectedPaymentMethod,
@@ -852,7 +908,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
       return;
     }
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -878,14 +933,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   void _confirmOrder() {
     if (_isProcessing) return;
-
     setState(() => _isProcessing = true);
-
     final orderNumber = _generateOrderNumber();
     final order = _createOrderModel(orderNumber);
     final orderItems = _createOrderItems();
-
-    // Dispatch event tạo đơn hàng
     context.read<OrderPaymentBloc>().add(
           CreateOrderEvent(
             order: order,

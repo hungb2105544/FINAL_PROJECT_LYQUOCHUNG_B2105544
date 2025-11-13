@@ -32,7 +32,6 @@ class _HomePageState extends State<HomePage>
   final ScrollController _scrollController = ScrollController();
   Timer? _scrollDebounceTimer;
 
-  // 🔧 FIX: Sử dụng StreamSubscription để track chính xác loading state
   StreamSubscription<ProductState>? _loadMoreSubscription;
   bool _isLoadingMore = false;
 
@@ -45,7 +44,11 @@ class _HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProductBloc>().add(
-            LoadProductsWithCache(page: 1, limit: 20, showCacheFirst: true),
+            LoadProductsServerFirst(
+              page: 1,
+              limit: 20,
+              useCacheFallback: true,
+            ),
           );
       context.read<BrandBloc>().add(LoadBrands());
       context.read<ProductTypeBloc>().add(const FetchProductTypes());
@@ -58,25 +61,19 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     _scrollController.dispose();
     _scrollDebounceTimer?.cancel();
-    _loadMoreSubscription?.cancel(); // 🔧 FIX: Cancel subscription
+    _loadMoreSubscription?.cancel();
     super.dispose();
   }
 
-  // 🔧 FIX: Cải thiện logic cuộn với debounce tốt hơn
   void _onScroll() {
-    // Cancel timer cũ nếu đang active
     _scrollDebounceTimer?.cancel();
-
-    // Tạo timer mới với delay dài hơn
     _scrollDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-      // 🔧 FIX: Kiểm tra đầy đủ các điều kiện
       if (_shouldLoadMore()) {
         _loadMoreProducts();
       }
     });
   }
 
-  // 🔧 FIX: Tách logic kiểm tra điều kiện load more
   bool _shouldLoadMore() {
     if (!mounted) return false;
     if (_isLoadingMore) return false;
@@ -84,29 +81,24 @@ class _HomePageState extends State<HomePage>
 
     final state = context.read<ProductBloc>().state;
 
-    // Kiểm tra đầy đủ các trạng thái
     if (state.hasReachedMax) return false;
     if (state.isLoading) return false;
-    if (state.isRefreshing) return false; // 🔧 FIX: Thêm check isRefreshing
+    if (state.isRefreshing) return false;
     if (state.products.isEmpty) return false;
 
     return true;
   }
 
-  // 🔧 FIX: Kiểm tra vị trí cuộn chính xác hơn
   bool get _isBottom {
     if (!_scrollController.hasClients) return false;
 
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.offset;
 
-    // 🔧 FIX: Tăng threshold lên 95% để tránh load quá sớm
-    // Và thêm buffer 200px để chắc chắn gần cuối
     return currentScroll >= (maxScroll * 0.95) &&
         (maxScroll - currentScroll) < 200;
   }
 
-  // 🔧 FIX: Load more với tracking state chính xác
   void _loadMoreProducts() {
     if (!mounted) return;
 
@@ -116,14 +108,10 @@ class _HomePageState extends State<HomePage>
     setState(() => _isLoadingMore = true);
 
     print('📄 Loading page ${currentPage + 1}...');
-
-    // Dispatch event
     bloc.add(LoadMoreProducts(page: currentPage + 1));
 
-    // 🔧 FIX: Listen state changes để biết khi nào load xong
     _loadMoreSubscription?.cancel();
     _loadMoreSubscription = bloc.stream.listen((state) {
-      // Kiểm tra nếu page đã được load
       if (state.currentPage > currentPage && !state.isLoading) {
         if (mounted) {
           setState(() => _isLoadingMore = false);
@@ -132,7 +120,6 @@ class _HomePageState extends State<HomePage>
         _loadMoreSubscription?.cancel();
       }
 
-      // Xử lý lỗi
       if (state.hasError && !state.isLoading) {
         if (mounted) {
           setState(() => _isLoadingMore = false);
@@ -142,7 +129,6 @@ class _HomePageState extends State<HomePage>
       }
     });
 
-    // 🔧 FIX: Timeout safety - reset sau 10s nếu không có response
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted && _isLoadingMore) {
         setState(() => _isLoadingMore = false);
@@ -194,12 +180,9 @@ class _HomePageState extends State<HomePage>
                     padding: EdgeInsets.symmetric(vertical: 12)),
                 const SliverToBoxAdapter(child: ProductSectionTitle()),
                 ProductGridSection(),
-
-                // 🔧 FIX: Hiển thị loading indicator khi đang load more
                 SliverToBoxAdapter(
                   child: BlocBuilder<ProductBloc, ProductState>(
                     builder: (context, state) {
-                      // Hiển thị loading indicator
                       if (_isLoadingMore && !state.hasReachedMax) {
                         return const Padding(
                           padding: EdgeInsets.all(16),
@@ -220,8 +203,6 @@ class _HomePageState extends State<HomePage>
                           ),
                         );
                       }
-
-                      // Hiển thị message khi đã hết sản phẩm
                       if (state.hasReachedMax && state.products.isNotEmpty) {
                         return Padding(
                           padding: const EdgeInsets.all(16),
@@ -248,8 +229,6 @@ class _HomePageState extends State<HomePage>
                     },
                   ),
                 ),
-
-                // 🔧 FIX: Thêm padding cuối để dễ scroll
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 20),
                 ),
@@ -262,12 +241,15 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _handleRefresh() async {
-    // 🔧 FIX: Reset _isLoadingMore khi refresh
     setState(() => _isLoadingMore = false);
     _loadMoreSubscription?.cancel();
 
     final bloc = context.read<ProductBloc>();
-    bloc.add(RefreshProducts(page: 1, limit: 20));
+    bloc.add(LoadProductsServerFirst(
+      page: 1,
+      limit: 20,
+      useCacheFallback: false,
+    ));
 
     await bloc.stream.firstWhere(
       (state) => !state.isRefreshing,
@@ -422,44 +404,81 @@ class ProductSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ProductBloc, ProductState>(
       buildWhen: (p, c) =>
-          p.isRefreshing != c.isRefreshing || p.isFromCache != c.isFromCache,
+          p.isRefreshing != c.isRefreshing ||
+          p.isLoading != c.isLoading ||
+          p.dataSource != c.dataSource ||
+          p.errorMessage != c.errorMessage,
       builder: (context, state) {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
             children: [
-              const Flexible(child: SectionTitle(title: "Danh sách sản phẩm")),
-              if (state.products.isNotEmpty)
-                Row(
-                  children: [
-                    IconButton(
-                      icon: state.isRefreshing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.refresh, size: 18),
-                      onPressed: state.isRefreshing
-                          ? null
-                          : () => context
-                              .read<ProductBloc>()
-                              .add(RefreshProducts(page: 1, limit: 20)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Flexible(
+                    child: SectionTitle(title: "Danh sách sản phẩm"),
+                  ),
+                  if (state.products.isNotEmpty)
+                    Row(
+                      children: [
+                        // Refresh button
+                        IconButton(
+                          icon: (state.isRefreshing || state.isLoading)
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh, size: 18),
+                          onPressed: (state.isRefreshing || state.isLoading)
+                              ? null
+                              : () => context
+                                  .read<ProductBloc>()
+                                  .add(LoadProductsServerFirst(
+                                    page: 1,
+                                    limit: 20,
+                                    useCacheFallback: false,
+                                  )),
+                          tooltip: 'Làm mới',
+                        ),
+
+                        // Data source indicator
+                        _buildDataSourceBadge(state),
+                      ],
                     ),
-                    if (state.isFromCache && !state.isRefreshing)
-                      const Row(
-                        children: [
-                          Icon(Icons.cached, size: 12, color: Colors.orange),
-                          SizedBox(width: 4),
-                          Text('Dữ liệu đã lưu',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.orange)),
-                        ],
-                      )
-                  ],
+                ],
+              ),
+
+              // ✅ Warning message khi dùng cache (fallback)
+              if (state.dataSource == DataSource.cache &&
+                  state.errorMessage != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          size: 20, color: Colors.orange[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          state.errorMessage!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[900],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
@@ -467,8 +486,51 @@ class ProductSectionTitle extends StatelessWidget {
       },
     );
   }
-}
 
+  Widget _buildDataSourceBadge(ProductState state) {
+    if (state.dataSource == DataSource.cache) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off, size: 12, color: Colors.orange[700]),
+            const SizedBox(width: 4),
+            Text(
+              'Offline',
+              style: TextStyle(fontSize: 11, color: Colors.orange[700]),
+            ),
+          ],
+        ),
+      );
+    } else if (state.dataSource == DataSource.server) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_done, size: 12, color: Colors.green[700]),
+            const SizedBox(width: 4),
+            Text(
+              'Mới nhất',
+              style: TextStyle(fontSize: 11, color: Colors.green[700]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
 // ====================================================================
 // WIDGET CON: Lưới sản phẩm
 // ====================================================================

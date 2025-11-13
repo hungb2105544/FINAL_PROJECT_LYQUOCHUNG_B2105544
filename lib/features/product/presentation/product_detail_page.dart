@@ -48,6 +48,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     super.initState();
     _initializeDefaultSelections();
     _loadNearestStock();
+    context
+        .read<RatingBloc>()
+        .add(FetchProductRatings(widget.product.id.toString()));
   }
 
   void _initializeDefaultSelections() {
@@ -1384,7 +1387,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           // Use BlocBuilder to fetch and display real ratings
           BlocBuilder<RatingBloc, RatingState>(
             builder: (context, state) {
-              // Trigger fetch on first build
               if (state is RatingInitial) {
                 context.read<RatingBloc>().add(
                       FetchProductRatings(widget.product.id.toString()),

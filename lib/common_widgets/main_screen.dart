@@ -51,7 +51,6 @@ class _MainScreenState extends State<MainScreen> {
     await Future.delayed(const Duration(milliseconds: 50));
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
 
-    // Load cart data ngay khi khởi tạo app
     await _loadInitialCartData();
 
     setState(() {
@@ -61,16 +60,13 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadInitialCartData() async {
     try {
-      // Kiểm tra user đã đăng nhập chưa
       final String? userId = SupabaseConfig.client.auth.currentUser?.id;
 
       if (userId != null && userId.isNotEmpty) {
-        // Load total cart items ngay khi mở app
         if (mounted) {
           context.read<CartBloc>().add(GetTotalCartItems(userId));
         }
       } else {
-        // Nếu chưa đăng nhập, có thể listen cho auth state changes
         SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
           final user = data.session?.user;
           if (user != null && mounted) {
@@ -79,7 +75,6 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      // Log error nhưng không crash app
       debugPrint('Error loading initial cart data: $e');
     }
   }
@@ -99,7 +94,6 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo hoặc loading indicator
               Image.asset(
                 'assets/images/splash_logo.png',
                 height: 80,
@@ -133,17 +127,13 @@ class _MainScreenState extends State<MainScreen> {
           BlocBuilder<CartBloc, CartState>(
             builder: (context, state) {
               int itemCount = 0;
-
-              // Xử lý các trạng thái khác nhau của cart
               if (state is CartLoaded) {
                 itemCount = state.totalItems;
               } else if (state is CartOperationSuccess) {
                 itemCount = state.totalItems ?? 0;
-                // Refresh cart data sau khi có thao tác
                 final String? userId =
                     SupabaseConfig.client.auth.currentUser?.id;
                 if (userId != null && userId.isNotEmpty) {
-                  // Delay một chút để tránh việc gọi liên tục
                   Future.delayed(const Duration(milliseconds: 100), () {
                     if (mounted) {
                       context.read<CartBloc>().add(GetTotalCartItems(userId));
@@ -162,7 +152,7 @@ class _MainScreenState extends State<MainScreen> {
                   itemCount > 99 ? '99+' : itemCount.toString(),
                   style: const TextStyle(color: Colors.white, fontSize: 8),
                 ),
-                showBadge: itemCount > 0, // Chỉ hiện badge khi có sản phẩm
+                showBadge: itemCount > 0,
                 child: IconButton(
                   icon: const Icon(
                     FontAwesomeIcons.cartShopping,
@@ -200,7 +190,6 @@ class _MainScreenState extends State<MainScreen> {
     final String? userId = SupabaseConfig.client.auth.currentUser?.id;
 
     if (userId == null || userId.isEmpty) {
-      // Hiển thị dialog yêu cầu đăng nhập
       _showLoginRequiredDialog();
       return;
     }
@@ -214,7 +203,6 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     ).then((_) {
-      // Reload cart data khi quay lại từ CartPage
       _refreshCartData();
     });
   }

@@ -112,16 +112,14 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16), // Giảm padding
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    const SizedBox(height: 16), // Giảm khoảng cách
-
-                    // Success Icon với Animation
+                    const SizedBox(height: 16),
                     ScaleTransition(
                       scale: _scaleAnimation,
                       child: Container(
-                        width: 100, // Giảm kích thước
+                        width: 100,
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -144,14 +142,11 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                         child: const Icon(
                           Icons.check_rounded,
                           color: Colors.white,
-                          size: 50, // Giảm kích thước icon
+                          size: 50,
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 24),
-
-                    // Title
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: Column(
@@ -159,7 +154,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                           const Text(
                             'Đặt hàng thành công!',
                             style: TextStyle(
-                              fontSize: 24, // Giảm font size
+                              fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
@@ -169,7 +164,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                           Text(
                             'Cảm ơn bạn đã tin tưởng và đặt hàng',
                             style: TextStyle(
-                              fontSize: 14, // Giảm font size
+                              fontSize: 14,
                               color: Colors.grey[600],
                             ),
                             textAlign: TextAlign.center,
@@ -177,15 +172,12 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 24),
-
-                    // Thông tin đơn hàng
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: Container(
-                        width: double.infinity, // Đảm bảo chiều rộng tối đa
-                        padding: const EdgeInsets.all(16), // Giảm padding
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -207,8 +199,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                             Row(
                               children: [
                                 Container(
-                                  padding:
-                                      const EdgeInsets.all(6), // Giảm padding
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: Colors.blue.shade100,
                                     borderRadius: BorderRadius.circular(8),
@@ -216,20 +207,19 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                                   child: Icon(
                                     Icons.receipt_long,
                                     color: Colors.blue.shade700,
-                                    size: 20, // Giảm kích thước icon
+                                    size: 20,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Flexible(
-                                  // Thêm Flexible để tránh overflow
                                   child: Text(
                                     'Thông tin đơn hàng',
                                     style: TextStyle(
-                                      fontSize: 16, // Giảm font size
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.blue.shade900,
                                     ),
-                                    maxLines: 2, // Giới hạn số dòng
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -264,28 +254,18 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Thông tin giao hàng (nếu có)
                     if (widget.paymentMethod == 'cod') _buildShippingInfo(),
-
                     if (widget.paymentMethod == 'bank_transfer' &&
                         widget.order.paymentStatus == 'paid')
                       _buildPaymentSuccessInfo(),
-
                     const SizedBox(height: 16),
-
-                    // Điểm thưởng (nếu có)
                     if (widget.order.pointsEarned > 0) _buildPointsEarnedInfo(),
-
-                    const SizedBox(height: 16), // Thêm khoảng cách cuối cùng
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
-
-            // Bottom buttons
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -310,8 +290,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14), // Giảm padding
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -320,7 +299,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                       child: const Text(
                         'Xem đơn hàng của tôi',
                         style: TextStyle(
-                          fontSize: 15, // Giảm font size
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -335,8 +314,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.primary,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14), // Giảm padding
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -348,7 +326,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                       child: const Text(
                         'Tiếp tục mua sắm',
                         style: TextStyle(
-                          fontSize: 15, // Giảm font size
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -396,7 +374,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
           child: Text(
             _getPaymentStatusText(),
             style: TextStyle(
-              fontSize: 12, // Giảm font size
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               color: _getPaymentStatusColor(),
             ),
@@ -413,7 +391,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
       opacity: _fadeAnimation,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12), // Giảm padding
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.orange.shade50,
           borderRadius: BorderRadius.circular(12),
@@ -428,7 +406,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
             Icon(
               Icons.local_shipping_outlined,
               color: Colors.orange.shade700,
-              size: 20, // Giảm kích thước icon
+              size: 20,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -440,14 +418,14 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.orange.shade900,
-                      fontSize: 13, // Giảm font size
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Chúng tôi sẽ liên hệ với bạn sớm nhất để xác nhận đơn hàng.',
                     style: TextStyle(
-                      fontSize: 12, // Giảm font size
+                      fontSize: 12,
                       color: Colors.grey[700],
                       height: 1.4,
                     ),
@@ -466,7 +444,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
       opacity: _fadeAnimation,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12), // Giảm padding
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.green.shade50,
           borderRadius: BorderRadius.circular(12),
@@ -481,7 +459,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
             Icon(
               Icons.check_circle_outline,
               color: Colors.green.shade700,
-              size: 20, // Giảm kích thước icon
+              size: 20,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -493,14 +471,14 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.green.shade900,
-                      fontSize: 13, // Giảm font size
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Đơn hàng của bạn đang được chuẩn bị và sẽ được giao sớm nhất.',
                     style: TextStyle(
-                      fontSize: 12, // Giảm font size
+                      fontSize: 12,
                       color: Colors.grey[700],
                       height: 1.4,
                     ),
@@ -519,7 +497,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
       opacity: _fadeAnimation,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12), // Giảm padding
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -537,7 +515,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(6), // Giảm padding
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: Colors.purple.shade100,
                 borderRadius: BorderRadius.circular(8),
@@ -545,7 +523,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
               child: Icon(
                 Icons.stars_rounded,
                 color: Colors.purple.shade700,
-                size: 20, // Giảm kích thước icon
+                size: 20,
               ),
             ),
             const SizedBox(width: 8),
@@ -558,14 +536,14 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.purple.shade900,
-                      fontSize: 13, // Giảm font size
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Điểm thưởng có thể sử dụng cho đơn hàng tiếp theo',
                     style: TextStyle(
-                      fontSize: 12, // Giảm font size
+                      fontSize: 12,
                       color: Colors.grey[700],
                     ),
                   ),
@@ -604,7 +582,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage>
           child: Text(
             value,
             style: TextStyle(
-              fontSize: isBold ? 15 : 14, // Giảm font size
+              fontSize: isBold ? 15 : 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
               color: valueColor ?? Colors.black87,
             ),

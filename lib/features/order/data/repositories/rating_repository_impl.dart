@@ -144,17 +144,19 @@ class RatingRepositoryImpl implements RatingRepository {
     }
 
     try {
+      final ratingJson = rating.toJson();
+      ratingJson.remove('id');
       // 2. Insert the rating
       final response = await supabase
           .from('product_ratings')
-          .insert(rating.toJson())
+          .insert(ratingJson)
           .select()
           .single();
 
       // 3. Update product's average rating and total ratings
       await _updateProductRatingStats(rating.productId!);
 
-      // 4. Mark the order item as reviewed
+      // 4. Mark the order item as reviewe
       await supabase
           .from('order_items')
           .update({'can_review': false}).eq('id', rating.orderItemId!);

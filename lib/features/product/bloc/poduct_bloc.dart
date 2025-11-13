@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_type.dart';
 import 'package:ecommerce_app/features/product/domain/usecase/get_products_is_active.dart';
-import 'package:ecommerce_app/features/product/domain/usecase/search_products.dart'; // Import usecase mới
-import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_brand.dart'; // Import UseCase mới
+import 'package:ecommerce_app/features/product/domain/usecase/search_products.dart';
+import 'package:ecommerce_app/features/product/domain/usecase/get_product_by_brand.dart';
 
 import 'package:ecommerce_app/service/cache_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,8 +15,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ProductBloc extends Bloc<ProductEvent, ProductState> {
   final GetProductsIsActive _getProductsIsActiveUseCase;
   final GetProductByType _getProductsByTypeUseCase;
-  final GetProductByBrand _getProductsByBrandUseCase; // Biến UseCase mới
-  final SearchProducts _searchProductsUseCase; // Usecase cho tìm kiếm
+  final GetProductByBrand _getProductsByBrandUseCase;
+  final SearchProducts _searchProductsUseCase;
   final CacheService _cacheService = CacheService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -25,18 +25,20 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   Box get _metadataBox => Hive.box('cache_metadata');
 
   RealtimeChannel? _productChannel;
+  RealtimeChannel? _discountChannel;
+
   Timer? _realtimeDebounce;
+  Timer? _discountDebounce;
 
   ProductBloc({
     required GetProductsIsActive getProductsIsActiveUseCase,
     required GetProductByType getProductsByTypeUseCase,
-    required SearchProducts searchProductsUseCase, // Thêm vào constructor
-    required GetProductByBrand
-        getProductsByBrandUseCase, // Tham số constructor mới
+    required SearchProducts searchProductsUseCase,
+    required GetProductByBrand getProductsByBrandUseCase,
   })  : _getProductsIsActiveUseCase = getProductsIsActiveUseCase,
         _getProductsByTypeUseCase = getProductsByTypeUseCase,
         _searchProductsUseCase = searchProductsUseCase,
-        _getProductsByBrandUseCase = getProductsByBrandUseCase, // Gán giá trị
+        _getProductsByBrandUseCase = getProductsByBrandUseCase,
         super(const ProductState()) {
     on<GetProductIsActive>(_getProducts);
     on<LoadProductsFromCache>(_loadProductsFromCache);
@@ -45,60 +47,49 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<ClearProductsCache>(_clearProductsCache);
     on<LoadMoreProducts>(_loadMoreProducts);
     on<GetProductsByTypeEvent>(_getProductByTypeId);
-    on<SearchProductsEvent>(_onSearchProducts); // Đăng ký handler
-    on<GetProductsByBrandEvent>(_getProductByBrandId); // Đăng ký handler mới
-    _setupRealtimeSubscription();
+    on<SearchProductsEvent>(_onSearchProducts);
+    on<GetProductsByBrandEvent>(_getProductByBrandId);
+    on<LoadProductsServerFirst>(_loadProductsServerFirst);
+    print('🚀🚀🚀 ProductBloc initialized, setting up realtime...');
+    _setupRealtimeSubscriptions();
   }
 
-  // -------------------------
-  // Realtime: khi event đến -> bắt buộc fetch server (forceRefresh)
-  // -------------------------
-  void _setupRealtimeSubscription() {
-    // Đảm bảo unsubscribe cũ (nếu có)
-    _productChannel?.unsubscribe();
-
-    _productChannel = _supabase
-        .channel('public:products')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'products',
-          callback: (payload) {
-            // payload có thể chứa eventType, newRecord, oldRecord
-            print('📡 Realtime event: ${payload.eventType}');
-            print('🆕 Record: ${payload.newRecord ?? payload.oldRecord}');
-
-            // debounce: hủy timer cũ và tạo 1 timer mới
-            _realtimeDebounce?.cancel();
-            _realtimeDebounce = Timer(const Duration(seconds: 2), () {
-              // gọi hàm async để fetch và emit
-              _handleRealtimeRefresh();
-            });
-          },
-        )
-        .subscribe((status, [error]) {
-      print('🔔 Subscription status: $status');
-      if (error != null) print('⚠️ Realtime subscribe error: $error');
-    });
-  }
-
-  // Hàm thực hiện refresh bắt buộc (bỏ cache)
-  Future<void> _handleRealtimeRefresh() async {
+  Future<void> _loadProductsServerFirst(
+    LoadProductsServerFirst event,
+    Emitter<ProductState> emit,
+  ) async {
     try {
-      print('🔄 Realtime forced refresh: fetching latest products from server');
+      print('\n🌐 ════════════════════════════════════════');
+      print('🌐 LOAD PRODUCTS - SERVER FIRST STRATEGY');
+      print('🌐 ════════════════════════════════════════');
 
-      // directly call usecase with forceRefresh = true
+      // 🔵 Step 1: Emit loading state
+      emit(state.copyWith(
+        isLoading: true,
+        isRefreshing: false,
+        errorMessage: null,
+        dataSource: DataSource.none,
+      ));
+      print('📤 Emitted: isLoading = true');
+
+      // 🔵 Step 2: Fetch từ server TRƯỚC
+      print(
+          '🌍 Fetching from server (page: ${event.page}, limit: ${event.limit})...');
       final freshProducts = await _getProductsIsActiveUseCase.call(
-        page: 1,
-        limit: 20,
+        page: event.page,
+        limit: event.limit,
         forceRefresh: true,
       );
 
       if (freshProducts.isNotEmpty) {
-        // Cập nhật cache (ghi đè)
-        await _cacheProducts(freshProducts, 1, 20);
+        print('✅ Received ${freshProducts.length} products from server');
 
-        // Emit state mới từ server
+        // 🔵 Step 3: Cập nhật cache
+        print('💾 Updating cache...');
+        await _cacheProducts(freshProducts, event.page, event.limit);
+        print('✅ Cache updated successfully');
+
+        // 🔵 Step 4: Emit fresh data
         emit(state.copyWith(
           isLoading: false,
           isRefreshing: false,
@@ -106,51 +97,326 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
           errorMessage: null,
           dataSource: DataSource.server,
           lastUpdated: DateTime.now(),
-          currentPage: 1,
-          hasReachedMax: freshProducts.length < 20,
+          currentPage: event.page,
+          hasReachedMax: freshProducts.length < event.limit,
         ));
 
-        print(
-            '✅ Realtime refresh completed: ${freshProducts.length} products updated');
+        print('✅ UI updated with fresh data from server');
+        print('🌐 ════════════════════════════════════════\n');
       } else {
-        // Nếu server trả rỗng: tạm thời giữ nguyên state nhưng clear isRefreshing
-        emit(state.copyWith(isRefreshing: false));
-        print('⚠️ Realtime refresh returned empty list from server');
+        print('⚠️ Server returned empty data');
+        if (event.useCacheFallback) {
+          print('🔄 Attempting cache fallback...');
+          await _fallbackToCache(event.page, event.limit, emit);
+        } else {
+          emit(state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            products: [],
+            errorMessage: "Không có dữ liệu sản phẩm",
+            dataSource: DataSource.none,
+          ));
+          print('❌ No fallback allowed, emitted empty state');
+        }
+        print('🌐 ════════════════════════════════════════\n');
       }
-    } catch (e) {
-      print('❌ Error during realtime forced refresh: $e');
-      // Không làm crash app, chỉ emit lỗi nhẹ
+    } catch (error) {
+      print('❌ ERROR: $error');
+
+      if (event.useCacheFallback) {
+        print('🔄 Server failed, attempting cache fallback...');
+        await _fallbackToCache(event.page, event.limit, emit);
+      } else {
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          errorMessage: error.toString(),
+          dataSource: DataSource.none,
+        ));
+        print('❌ No fallback allowed, emitted error state');
+      }
+      print('🌐 ════════════════════════════════════════\n');
+    }
+  }
+
+  Future<void> _fallbackToCache(
+    int page,
+    int limit,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final cachedProducts = await _loadCachedProducts(
+        page: page,
+        limit: limit,
+      );
+
+      if (cachedProducts != null && cachedProducts.isNotEmpty) {
+        print('✅ Found ${cachedProducts.length} products in cache');
+
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          products: cachedProducts,
+          errorMessage: "Không thể kết nối server, hiển thị dữ liệu đã lưu",
+          dataSource: DataSource.cache,
+          currentPage: page,
+          hasReachedMax: false,
+        ));
+
+        print('✅ UI updated with cached data (fallback)');
+      } else {
+        print('❌ No cache available for fallback');
+
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          products: [],
+          errorMessage: "Không có kết nối internet và không có dữ liệu đã lưu",
+          dataSource: DataSource.none,
+        ));
+      }
+    } catch (cacheError) {
+      print('❌ Cache fallback also failed: $cacheError');
+
       emit(state.copyWith(
+        isLoading: false,
         isRefreshing: false,
-        errorMessage: 'Lỗi khi cập nhật realtime: $e',
+        errorMessage: "Không thể tải dữ liệu",
+        dataSource: DataSource.none,
       ));
     }
   }
 
-  // Handler cho sự kiện tìm kiếm
+  void _setupRealtimeSubscriptions() {
+    print('═══════════════════════════════════════');
+    print('🔧 SETTING UP REALTIME SUBSCRIPTIONS');
+    print('═══════════════════════════════════════');
+    _setupProductChannel();
+    _setupDiscountChannel();
+    print('✅ Setup completed');
+    print('═══════════════════════════════════════\n');
+  }
+
+  void _setupProductChannel() {
+    print('\n📦 ━━━ PRODUCTS CHANNEL SETUP ━━━');
+    _productChannel?.unsubscribe();
+
+    final channelName =
+        'products_changes_${DateTime.now().millisecondsSinceEpoch}';
+    print('   Channel name: $channelName');
+
+    _productChannel = _supabase
+        .channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'products',
+          callback: (payload) {
+            print('\n┌─────────────────────────────────────┐');
+            print('│  📡 PRODUCTS EVENT RECEIVED!        │');
+            print('└─────────────────────────────────────┘');
+            print('Event Type: ${payload.eventType}');
+            print('New Record: ${payload.newRecord}');
+            print('Old Record: ${payload.oldRecord}');
+            print('─────────────────────────────────────\n');
+
+            _realtimeDebounce?.cancel();
+            _realtimeDebounce = Timer(const Duration(seconds: 2), () {
+              print('⏰ Products debounce timer triggered');
+              _handleProductRefresh();
+            });
+          },
+        )
+        .subscribe((status, [error]) {
+      print('🔔 Products Status: $status');
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        print('   ✅ PRODUCTS SUCCESSFULLY SUBSCRIBED!');
+      } else if (status == RealtimeSubscribeStatus.channelError) {
+        print('   ❌ PRODUCTS CHANNEL ERROR!');
+      } else if (status == RealtimeSubscribeStatus.timedOut) {
+        print('   ⏱️ PRODUCTS TIMED OUT!');
+      }
+      if (error != null) print('   ⚠️ Error: $error');
+    });
+  }
+
+  void _setupDiscountChannel() {
+    print('\n💰 ━━━ DISCOUNTS CHANNEL SETUP ━━━');
+    _discountChannel?.unsubscribe();
+
+    final channelName =
+        'discounts_changes_${DateTime.now().millisecondsSinceEpoch}';
+    print('   Channel name: $channelName');
+
+    _discountChannel = _supabase
+        .channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'product_discounts',
+          callback: (payload) {
+            print('\n┌─────────────────────────────────────┐');
+            print('│  💰 DISCOUNTS EVENT RECEIVED!       │');
+            print('└─────────────────────────────────────┘');
+            print('Event Type: ${payload.eventType}');
+            print('New Record: ${payload.newRecord}');
+            print('Old Record: ${payload.oldRecord}');
+            print('─────────────────────────────────────\n');
+            print('📤 Emitting isRefreshing: true');
+            emit(state.copyWith(
+              isRefreshing: true,
+              errorMessage: null,
+            ));
+
+            _discountDebounce?.cancel();
+            _discountDebounce = Timer(const Duration(seconds: 2), () {
+              print('⏰ Discounts debounce timer triggered');
+              _handleDiscountRefresh();
+            });
+          },
+        )
+        .subscribe((status, [error]) {
+      print('🔔 Discounts Status: $status');
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        print('   ✅ DISCOUNTS SUCCESSFULLY SUBSCRIBED!');
+      } else if (status == RealtimeSubscribeStatus.channelError) {
+        print('   ❌ DISCOUNTS CHANNEL ERROR!');
+      } else if (status == RealtimeSubscribeStatus.timedOut) {
+        print('   ⏱️ DISCOUNTS TIMED OUT!');
+      }
+      if (error != null) print('   ⚠️ Error: $error');
+    });
+  }
+
+  Future<void> _handleProductRefresh() async {
+    try {
+      print('\n🔄 ━━━ PRODUCTS REFRESH STARTED ━━━');
+
+      emit(state.copyWith(
+        isRefreshing: true,
+        errorMessage: null,
+      ));
+      print('✅ Emitted isRefreshing: true');
+
+      final currentPage = state.currentPage;
+      final currentLimit = 20;
+
+      print(
+          '📥 Fetching products (page: $currentPage, limit: $currentLimit)...');
+      final freshProducts = await _getProductsIsActiveUseCase.call(
+        page: currentPage,
+        limit: currentLimit,
+        forceRefresh: true,
+      );
+      print('📦 Received ${freshProducts.length} products');
+
+      if (freshProducts.isNotEmpty) {
+        await _cacheProducts(freshProducts, currentPage, currentLimit);
+
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          products: freshProducts.toSet().toList(),
+          errorMessage: null,
+          dataSource: DataSource.server,
+          lastUpdated: DateTime.now(),
+          hasReachedMax: freshProducts.length < currentLimit,
+        ));
+
+        print('✅ Products updated successfully');
+        print('━━━ PRODUCTS REFRESH COMPLETED ━━━\n');
+      } else {
+        emit(state.copyWith(
+          isRefreshing: false,
+          errorMessage: 'Không có dữ liệu từ server',
+        ));
+        print('⚠️ No products received from server');
+      }
+    } catch (e) {
+      print('❌ Products refresh error: $e');
+      emit(state.copyWith(
+        isRefreshing: false,
+        errorMessage: 'Lỗi cập nhật sản phẩm: $e',
+      ));
+    }
+  }
+
+  Future<void> _handleDiscountRefresh() async {
+    try {
+      print('\n🔄 ━━━ DISCOUNTS REFRESH STARTED ━━━');
+
+      // Đảm bảo state được emit
+      print('📤 Emitting isRefreshing: true');
+      emit(state.copyWith(
+        isRefreshing: true,
+        errorMessage: null,
+      ));
+
+      final currentPage = state.currentPage;
+      final currentLimit = 20;
+
+      print(
+          '📥 Fetching products (page: $currentPage, limit: $currentLimit)...');
+      final freshProducts = await _getProductsIsActiveUseCase.call(
+        page: currentPage,
+        limit: currentLimit,
+        forceRefresh: true,
+      );
+      print('📦 Received ${freshProducts.length} products');
+
+      if (freshProducts.isNotEmpty) {
+        await _cacheProducts(freshProducts, currentPage, currentLimit);
+
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          products: freshProducts.toSet().toList(),
+          errorMessage: null,
+          dataSource: DataSource.server,
+          lastUpdated: DateTime.now(),
+          hasReachedMax: freshProducts.length < currentLimit,
+        ));
+
+        print(
+            '✅ Discounts refresh completed, products updated: ${freshProducts.length}');
+        print('━━━ DISCOUNTS REFRESH COMPLETED ━━━\n');
+      }
+    } catch (e) {
+      print('❌ Discounts refresh error: $e');
+      emit(state.copyWith(
+        isRefreshing: false,
+        errorMessage: 'Lỗi cập nhật giá khuyến mãi: $e',
+      ));
+    }
+  }
+
   Future<void> _onSearchProducts(
     SearchProductsEvent event,
     Emitter<ProductState> emit,
   ) async {
-    if (event.query.isEmpty) {
-      // Nếu query rỗng, xóa kết quả tìm kiếm và dừng trạng thái searching
-      emit(state
-          .copyWith(searchResults: [], isSearching: false, errorMessage: null));
+    if (event.query.trim().isEmpty) {
+      emit(state.copyWith(
+        searchResults: [],
+        isSearching: false,
+        errorMessage: null,
+      ));
       return;
     }
 
     try {
       emit(state.copyWith(isSearching: true, errorMessage: null));
 
-      final products = await _searchProductsUseCase.call(event.query);
+      final products = await _searchProductsUseCase.call(event.query.trim());
 
       emit(state.copyWith(
         isSearching: false,
-        searchResults: products, // Lưu kết quả vào một trường riêng
+        searchResults: products,
+        errorMessage: null,
       ));
     } catch (e) {
       emit(state.copyWith(
         isSearching: false,
+        searchResults: [],
         errorMessage: "Lỗi khi tìm kiếm: ${e.toString()}",
       ));
     }
@@ -161,42 +427,49 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     Emitter<ProductState> emit,
   ) async {
     try {
-      // ❌ KHÔNG xóa products: [] ở đây nữa.
       emit(state.copyWith(
         isLoading: true,
         isRefreshing: false,
         errorMessage: null,
-        products: [],
       ));
 
-      // Lấy sản phẩm từ cache trước
       final cachedProducts =
           await _loadCachedProductsForType(event.typeId.toString());
       if (cachedProducts != null && cachedProducts.isNotEmpty) {
         emit(state.copyWith(
           isLoading: false,
+          isRefreshing: true,
           products: cachedProducts,
           dataSource: DataSource.cache,
+          currentPage: 1,
+          hasReachedMax: false,
         ));
       }
 
-      // Sau đó fetch từ server
       final products =
           await _getProductsByTypeUseCase.call(event.typeId.toString());
 
+      await _cacheProductsForType(event.typeId.toString(), products);
+
       emit(state.copyWith(
         isLoading: false,
+        isRefreshing: false,
         products: products,
         dataSource: DataSource.server,
         lastUpdated: DateTime.now(),
+        currentPage: 1,
+        hasReachedMax: products.isEmpty,
+        errorMessage: null,
       ));
     } catch (e) {
       emit(state.copyWith(
-          isLoading: false, errorMessage: "Lỗi tải sản phẩm: ${e.toString()}"));
+        isLoading: false,
+        isRefreshing: false,
+        errorMessage: "Lỗi tải sản phẩm: ${e.toString()}",
+      ));
     }
   }
 
-  // -------------------- GET PRODUCTS BY BRAND ID --------------------
   Future<void> _getProductByBrandId(
     GetProductsByBrandEvent event,
     Emitter<ProductState> emit,
@@ -206,45 +479,46 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isLoading: true,
         isRefreshing: false,
         errorMessage: null,
-        products: [], // Xóa danh sách sản phẩm cũ khi chuyển loại
       ));
 
       final brandIdString = event.brandId.toString();
 
-      // Lấy sản phẩm từ cache trước
       final cachedProducts = await _loadCachedProductsForBrand(brandIdString);
       if (cachedProducts != null && cachedProducts.isNotEmpty) {
         emit(state.copyWith(
           isLoading: false,
+          isRefreshing: true,
           products: cachedProducts,
           dataSource: DataSource.cache,
+          currentPage: 1,
+          hasReachedMax: false,
           errorMessage: null,
         ));
       }
 
-      // Sau đó fetch từ server
       final products = await _getProductsByBrandUseCase.call(brandIdString);
 
-      // Cache kết quả từ server
       await _cacheProductsForBrand(brandIdString, products);
 
       emit(state.copyWith(
         isLoading: false,
+        isRefreshing: false,
         products: products,
         dataSource: DataSource.server,
         lastUpdated: DateTime.now(),
+        currentPage: 1,
+        hasReachedMax: products.isEmpty,
         errorMessage: null,
       ));
     } catch (e) {
       emit(state.copyWith(
-          isLoading: false,
-          errorMessage: "Lỗi tải sản phẩm theo thương hiệu: ${e.toString()}"));
+        isLoading: false,
+        isRefreshing: false,
+        errorMessage: "Lỗi tải sản phẩm theo thương hiệu: ${e.toString()}",
+      ));
     }
   }
 
-  // -------------------------
-  // Các handler Event (giữ nguyên logic của bạn, chỉ thêm best-effort)
-  // -------------------------
   Future<void> _loadProductsWithCache(
     LoadProductsWithCache event,
     Emitter<ProductState> emit,
@@ -290,21 +564,42 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
           hasReachedMax: freshProducts.length < event.limit,
         ));
       } else {
+        if (cachedProducts != null && cachedProducts.isNotEmpty) {
+          emit(state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            errorMessage: "Không có dữ liệu mới từ server",
+          ));
+        } else {
+          emit(state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            products: [],
+            errorMessage: "Không có dữ liệu sản phẩm",
+            dataSource: DataSource.none,
+          ));
+        }
+      }
+    } catch (error) {
+      final cachedProducts =
+          await _loadCachedProducts(page: event.page, limit: event.limit);
+
+      if (cachedProducts != null && cachedProducts.isNotEmpty) {
         emit(state.copyWith(
           isLoading: false,
           isRefreshing: false,
-          products: [],
-          errorMessage: "Không có dữ liệu sản phẩm",
+          products: cachedProducts,
+          errorMessage: "Lỗi kết nối, hiển thị dữ liệu đã lưu",
+          dataSource: DataSource.cache,
+        ));
+      } else {
+        emit(state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          errorMessage: error.toString(),
           dataSource: DataSource.none,
         ));
       }
-    } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        isRefreshing: false,
-        errorMessage: error.toString(),
-        dataSource: DataSource.none,
-      ));
     }
   }
 
@@ -370,7 +665,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   ) async {
     try {
       emit(state.copyWith(isRefreshing: true));
-      // Luôn fetch trực tiếp server (bỏ qua cache) khi user trigger refresh
       final response = await _getProductsIsActiveUseCase.call(
         page: event.page,
         limit: event.limit,
@@ -432,9 +726,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
-  // -------------------------
-  // Cache helpers
-  // -------------------------
   Future<List<ProductModel>?> _loadCachedProducts({
     int page = 1,
     int limit = 20,
@@ -482,7 +773,6 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
-  // Helper mới cho Brand ID
   Future<List<ProductModel>?> _loadCachedProductsForBrand(
       String brandId) async {
     try {
@@ -520,18 +810,29 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
   }
 
-  // Helper mới để cache sản phẩm theo Brand ID
+  Future<void> _cacheProductsForType(
+      String typeId, List<ProductModel> products) async {
+    final cacheKey = 'products_type_$typeId';
+    final ids = products.map((p) => 'product_${p.id}').toList();
+
+    for (final product in products) {
+      await _productsBox.put('product_${product.id}', product);
+    }
+
+    await _metadataBox.put('${cacheKey}_data', ids);
+    await _metadataBox.put(
+        '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
+  }
+
   Future<void> _cacheProductsForBrand(
       String brandId, List<ProductModel> products) async {
     final cacheKey = 'products_brand_$brandId';
     final ids = products.map((p) => 'product_${p.id}').toList();
 
     for (final product in products) {
-      // Đảm bảo ProductModel được cache trong box chung
       await _productsBox.put('product_${product.id}', product);
     }
 
-    // Lưu danh sách IDs vào metadata box
     await _metadataBox.put('${cacheKey}_data', ids);
     await _metadataBox.put(
         '${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
@@ -545,8 +846,15 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   @override
   Future<void> close() {
+    print('\n🔴 ProductBloc closing...');
     _productChannel?.unsubscribe();
+    _discountChannel?.unsubscribe();
+
     _realtimeDebounce?.cancel();
+    _discountDebounce?.cancel();
+
+    print('✅ ProductBloc closed\n');
+
     return super.close();
   }
 }
