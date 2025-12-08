@@ -9,7 +9,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:lottie/lottie.dart';
 
 class VoucherSelectionPage extends StatefulWidget {
-  const VoucherSelectionPage({super.key});
+  final double orderValue;
+  const VoucherSelectionPage({super.key, required this.orderValue});
 
   @override
   State<VoucherSelectionPage> createState() => _VoucherSelectionPageState();
@@ -35,7 +36,7 @@ class _VoucherSelectionPageState extends State<VoucherSelectionPage> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context, null); // Không chọn voucher nào
+              Navigator.pop(context, null);
             },
             child: const Text(
               "Bỏ qua",
@@ -158,6 +159,8 @@ class _VoucherSelectionPageState extends State<VoucherSelectionPage> {
       itemCount: vouchers.length,
       itemBuilder: (context, index) {
         final voucher = vouchers[index];
+        final isEligible = voucher.minOrderValue <= widget.orderValue;
+        final canSelect = voucher.isActive && isEligible;
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -165,14 +168,13 @@ class _VoucherSelectionPageState extends State<VoucherSelectionPage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.orange.shade50,
-                Colors.red.shade50,
-              ],
+              colors: canSelect
+                  ? [Colors.orange.shade50, Colors.red.shade50]
+                  : [Colors.grey.shade200, Colors.grey.shade300],
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: Colors.orange.shade200,
+              color: canSelect ? Colors.orange.shade200 : Colors.grey.shade400,
               width: 1.5,
             ),
             boxShadow: [
@@ -186,13 +188,13 @@ class _VoucherSelectionPageState extends State<VoucherSelectionPage> {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: voucher.isActive
+            onTap: canSelect
                 ? () {
                     Navigator.pop(context, voucher);
                   }
                 : null,
             child: Opacity(
-              opacity: voucher.isActive ? 1.0 : 0.6,
+              opacity: canSelect ? 1.0 : 0.6,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -407,9 +409,11 @@ class _VoucherSelectionPageState extends State<VoucherSelectionPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        if (!voucher.isActive)
+                        if (!canSelect)
                           Text(
-                            "Voucher không khả dụng",
+                            !isEligible
+                                ? "Chưa đủ điều kiện"
+                                : "Voucher không khả dụng",
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade600,

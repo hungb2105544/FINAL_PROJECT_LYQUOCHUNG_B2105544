@@ -761,7 +761,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _navigateToVoucherSelection() async {
     final VoucherModel? selectectedVoucher = await Navigator.push<VoucherModel>(
       context,
-      MaterialPageRoute(builder: (context) => const VoucherSelectionPage()),
+      MaterialPageRoute(
+          builder: (context) => VoucherSelectionPage(
+                orderValue: _calculateTotalProductValue(),
+              )),
     );
     if (selectectedVoucher != null) {
       setState(() => _selectectedVoucher = selectectedVoucher);

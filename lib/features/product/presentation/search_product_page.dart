@@ -228,76 +228,83 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     return searchTerms.every((term) => normalizedHaystack.contains(term));
   }
 
-  // ✅ CẬP NHẬT: Apply filters với logic tồn kho mới
   void _applyFilters() {
-    List<ProductModel> baseResults = _searchController.text.isEmpty
-        ? []
-        : context.read<ProductBloc>().state.searchResults;
+    Future.microtask(() {
+      List<ProductModel> baseResults = _searchController.text.isEmpty
+          ? []
+          : context.read<ProductBloc>().state.searchResults;
 
-    List<ProductModel> filtered = List.from(baseResults);
+      List<ProductModel> filtered = List.from(baseResults);
 
-    // Áp dụng tìm kiếm
-    if (_searchController.text.isNotEmpty) {
-      filtered = filtered
-          .where((product) =>
-              _matchesSearch(product.name, _searchController.text) ||
-              (product.description != null &&
-                  _matchesSearch(product.description!, _searchController.text)))
-          .toList();
-    }
+      if (_searchController.text.isNotEmpty) {
+        filtered = filtered
+            .where((product) =>
+                _matchesSearchWithScore(product, _searchController.text))
+            .toList();
+        if (_currentFilter.sortOption == SortOption.none) {
+          filtered.sort((a, b) {
+            final scoreA = _calculateMatchScore(a, _searchController.text);
+            final scoreB = _calculateMatchScore(b, _searchController.text);
+            return scoreB.compareTo(scoreA);
+          });
+        }
+      }
 
-    // Filter by brands
-    if (_currentFilter.selectedBrands.isNotEmpty) {
-      filtered = filtered.where((product) {
-        return _currentFilter.selectedBrands.contains(product.brand?.brandName);
-      }).toList();
-    }
+      if (_currentFilter.selectedBrands.isNotEmpty) {
+        filtered = filtered.where((product) {
+          return _currentFilter.selectedBrands
+              .contains(product.brand?.brandName);
+        }).toList();
+      }
+      if (_currentFilter.priceRange != null) {
+        filtered = filtered.where((product) {
+          final price = _getProductPrice(product);
+          return price >= _currentFilter.priceRange!.start &&
+              price <= _currentFilter.priceRange!.end;
+        }).toList();
+      }
 
-    // Filter by price range
-    if (_currentFilter.priceRange != null) {
-      filtered = filtered.where((product) {
-        final price = _getProductPrice(product);
-        return price >= _currentFilter.priceRange!.start &&
-            price <= _currentFilter.priceRange!.end;
-      }).toList();
-    }
+      if (_currentFilter.inStockOnly) {
+        filtered =
+            filtered.where((product) => _isProductInStock(product)).toList();
+      }
 
-    // ✅ FIX: Filter by stock - Sử dụng logic kiểm tra tồn kho thực tế
-    if (_currentFilter.inStockOnly) {
-      filtered =
-          filtered.where((product) => _isProductInStock(product)).toList();
-    }
+      if (_currentFilter.sortOption != SortOption.none) {
+        switch (_currentFilter.sortOption) {
+          case SortOption.priceAsc:
+            filtered.sort(
+                (a, b) => _getProductPrice(a).compareTo(_getProductPrice(b)));
+            break;
+          case SortOption.priceDesc:
+            filtered.sort(
+                (a, b) => _getProductPrice(b).compareTo(_getProductPrice(a)));
+            break;
+          case SortOption.nameAsc:
+            filtered.sort((a, b) => a.name.compareTo(b.name));
+            break;
+          case SortOption.nameDesc:
+            filtered.sort((a, b) => b.name.compareTo(a.name));
+            break;
+          case SortOption.newest:
+            filtered.sort((a, b) => (b.createdAt ?? DateTime.now())
+                .compareTo(a.createdAt ?? DateTime.now()));
+            break;
+          case SortOption.oldest:
+            filtered.sort((a, b) => (a.createdAt ?? DateTime.now())
+                .compareTo(b.createdAt ?? DateTime.now()));
+            break;
+          case SortOption.none:
+            // Đã sort theo relevance ở trên
+            break;
+        }
+      }
 
-    // Apply sorting
-    switch (_currentFilter.sortOption) {
-      case SortOption.priceAsc:
-        filtered
-            .sort((a, b) => _getProductPrice(a).compareTo(_getProductPrice(b)));
-        break;
-      case SortOption.priceDesc:
-        filtered
-            .sort((a, b) => _getProductPrice(b).compareTo(_getProductPrice(a)));
-        break;
-      case SortOption.nameAsc:
-        filtered.sort((a, b) => a.name.compareTo(b.name));
-        break;
-      case SortOption.nameDesc:
-        filtered.sort((a, b) => b.name.compareTo(a.name));
-        break;
-      case SortOption.newest:
-        filtered.sort((a, b) => (b.createdAt ?? DateTime.now())
-            .compareTo(a.createdAt ?? DateTime.now()));
-        break;
-      case SortOption.oldest:
-        filtered.sort((a, b) => (a.createdAt ?? DateTime.now())
-            .compareTo(b.createdAt ?? DateTime.now()));
-        break;
-      case SortOption.none:
-        break;
-    }
-
-    setState(() {
-      _filteredResults = filtered;
+      // ✅ Update state
+      if (mounted) {
+        setState(() {
+          _filteredResults = filtered;
+        });
+      }
     });
   }
 
@@ -306,6 +313,38 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
             product.priceHistoryModel!.isNotEmpty)
         ? product.priceHistoryModel!.last.price.toDouble()
         : 0.0;
+  }
+
+  double _calculateMatchScore(ProductModel product, String query) {
+    final normalizedQuery = _normalizeSearchText(query);
+    final normalizedName = _normalizeSearchText(product.name);
+    final normalizedDesc = product.description != null
+        ? _normalizeSearchText(product.description!)
+        : '';
+
+    double score = 0;
+    final searchTerms = normalizedQuery.split(' ');
+
+    for (final term in searchTerms) {
+      if (RegExp(r'(^|\s)' + RegExp.escape(term) + r'(\s|$)')
+          .hasMatch(normalizedName)) {
+        score += 100;
+      } else if (RegExp(r'(^|\s)' + RegExp.escape(term))
+          .hasMatch(normalizedName)) {
+        score += 50;
+      } else if (normalizedName.contains(term)) {
+        score += 10;
+      } else if (normalizedDesc.contains(term)) {
+        score += 5;
+      }
+    }
+
+    return score;
+  }
+
+  bool _matchesSearchWithScore(ProductModel product, String query) {
+    final score = _calculateMatchScore(product, query);
+    return score >= 50;
   }
 
   void _updateFilterData(List<ProductModel> products) {
@@ -887,31 +926,67 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     );
   }
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   return GestureDetector(
+  //     onTap: () => FocusScope.of(context).unfocus(),
+  //     child: Scaffold(
+  //       backgroundColor: Colors.grey[50],
+  //       body: Column(
+  //         children: [
+  //           Container(
+  //             color: Colors.white,
+  //             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+  //             child: Column(
+  //               children: [
+  //                 _buildSearchBar(),
+  //                 _buildSearchSuggestions(),
+  //               ],
+  //             ),
+  //           ),
+
+  //           // Filter Bar
+  //           _buildFilterBar(),
+
+  //           // Results Section
+  //           Expanded(
+  //             child: _buildSearchResults(),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: Colors.grey[50],
-        body: Column(
-          children: [
-            // Search and suggestion area
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Column(
-                children: [
-                  _buildSearchBar(),
-                  _buildSearchSuggestions(),
-                ],
+        resizeToAvoidBottomInset: true,
+        body: CustomScrollView(
+          slivers: [
+            // Search Bar - Sticky header
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Column(
+                  children: [
+                    _buildSearchBar(),
+                    _buildSearchSuggestions(),
+                  ],
+                ),
               ),
             ),
 
-            // Filter Bar
-            _buildFilterBar(),
+            // Filter Bar - Sticky
+            SliverToBoxAdapter(
+              child: _buildFilterBar(),
+            ),
 
-            // Results Section
-            Expanded(
+            // Results Section - Scrollable
+            SliverFillRemaining(
               child: _buildSearchResults(),
             ),
           ],
@@ -966,7 +1041,9 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
@@ -974,112 +1051,107 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
           topRight: Radius.circular(20),
         ),
       ),
-      child: Column(
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Text(
-                  'Bộ lọc',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _tempFilter = const ProductFilter();
-                      _tempPriceRange = widget.priceRangeLimit;
-                    });
-                  },
-                  child: const Text('Xóa tất cả'),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Filter Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
                 children: [
-                  // Brand Filter
-                  _buildBrandFilter(),
-
-                  const SizedBox(height: 24),
-
-                  // Price Filter
-                  _buildPriceFilter(),
-
-                  const SizedBox(height: 24),
-
-                  // Stock Filter
-                  _buildStockFilter(),
+                  const Text(
+                    'Bộ lọc',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _tempFilter = const ProductFilter();
+                        _tempPriceRange = widget.priceRangeLimit;
+                      });
+                    },
+                    child: const Text('Xóa tất cả'),
+                  ),
                 ],
               ),
             ),
-          ),
-
-          // Bottom buttons
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
+            const Divider(height: 1),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBrandFilter(),
+                    const SizedBox(height: 24),
+                    _buildPriceFilter(),
+                    const SizedBox(height: 24),
+                    _buildStockFilter(),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-              ],
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Hủy'),
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.of(context).padding.bottom + 12,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final finalFilter = (_tempPriceRange.start !=
-                                  widget.priceRangeLimit.start ||
-                              _tempPriceRange.end != widget.priceRangeLimit.end)
-                          ? _tempFilter.copyWith(priceRange: _tempPriceRange)
-                          : _tempFilter;
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Hủy'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final finalFilter = (_tempPriceRange.start !=
+                                    widget.priceRangeLimit.start ||
+                                _tempPriceRange.end !=
+                                    widget.priceRangeLimit.end)
+                            ? _tempFilter.copyWith(priceRange: _tempPriceRange)
+                            : _tempFilter;
 
-                      widget.onFilterChanged(finalFilter);
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Áp dụng'),
+                        widget.onFilterChanged(finalFilter);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Áp dụng'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
